@@ -70,6 +70,8 @@ func (p *Panel) render() {
 		lines = p.viewProfiles()
 	case modeHistory:
 		lines = p.viewHistory()
+	case modeHelp:
+		lines = p.viewHelp()
 	default:
 		lines = p.viewList()
 	}
@@ -168,7 +170,7 @@ func (p *Panel) footer() []string {
 		stats = i18n.T("list.stats", p.reading.CPU, p.reading.PerMinute)
 	}
 	foot = append(foot, fit(" "+stats+sess, w))
-	hints := tr("hint.enter", "hint.toggle", "hint.tab", "hint.new", "hint.history", "hint.worktree", "hint.filter", "hint.rename", "hint.hide", "hint.close", "hint.zoom", "hint.quit")
+	hints := tr("hint.enter", "hint.toggle", "hint.new", "hint.history", "hint.help", "hint.quit")
 	return append(foot, wrapHints(hints, w)...)
 }
 
@@ -354,4 +356,33 @@ func tr(keys ...string) []string {
 		out[i] = i18n.T(k)
 	}
 	return out
+}
+
+// helpKeys lists every key with its description, in screen order.
+var helpKeys = []struct{ key, msg string }{
+	{"↑ ↓  j k", "help.move"},
+	{"Enter", "help.enter"},
+	{"Ctrl+\\", "help.toggle"},
+	{"Tab", "help.tab"},
+	{"1-9", "help.number"},
+	{"n", "help.new"},
+	{"w", "help.worktree"},
+	{"h", "help.history"},
+	{"/", "help.filter"},
+	{"r", "help.rename"},
+	{"Esc", "help.hide"},
+	{"x", "help.close"},
+	{"z", "help.zoom"},
+	{"q", "help.quit"},
+}
+
+func (p *Panel) viewHelp() []string {
+	w := p.w
+	body := []string{bold + fit(" "+i18n.T("help.title"), w) + reset, ""}
+	for _, h := range helpKeys {
+		body = append(body, " "+bold+fit(h.key, 10)+reset+" "+fit(i18n.T(h.msg), w-12))
+	}
+	body = append(body, "", dim+fit(" "+i18n.T("help.status"), w)+reset)
+	foot := []string{dim + strings.Repeat("─", w) + reset, dim + fit(" "+i18n.T("help.close.any"), w) + reset}
+	return layout(body, foot, p.h, 0)
 }

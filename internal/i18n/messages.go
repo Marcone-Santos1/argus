@@ -31,6 +31,26 @@ var messages = map[string][2]string{
 	"hint.back":        {"esc back", "esc voltar"},
 	"hint.typeHistory": {"type to filter (project, title, account)", "digite para filtrar (projeto, título, conta)"},
 	"hint.resume":      {"⏎ resume", "⏎ retomar"},
+	"hint.help":        {"? help", "? ajuda"},
+
+	// Help screen.
+	"help.title":     {"Keys", "Teclas"},
+	"help.move":      {"select; an open session shows on the right", "seleciona; uma sessão aberta aparece à direita"},
+	"help.enter":     {"enter the session, or resume a past conversation", "entra na sessão, ou retoma a conversa antiga"},
+	"help.toggle":    {"switch between the list and the session (anywhere)", "alterna entre a lista e a sessão (de qualquer lugar)"},
+	"help.tab":       {"next session waiting for you", "próxima sessão esperando você"},
+	"help.number":    {"jump to an open session", "vai direto para uma sessão aberta"},
+	"help.new":       {"new session: project and profile", "nova sessão: projeto e perfil"},
+	"help.worktree":  {"new session in a worktree of the repository", "nova sessão numa worktree do repositório"},
+	"help.history":   {"all past conversations, searchable", "todas as conversas antigas, com busca"},
+	"help.filter":    {"filter the list", "filtra a lista"},
+	"help.rename":    {"rename the session", "renomeia a sessão"},
+	"help.hide":      {"hide the session on the right (it keeps running)", "esconde a sessão da direita (ela continua rodando)"},
+	"help.close":     {"close the session", "encerra a sessão"},
+	"help.zoom":      {"zoom the session", "sessão em tela cheia"},
+	"help.quit":      {"close the panel; sessions keep running", "fecha o painel; as sessões continuam"},
+	"help.status":    {"● working  ◐ waiting for you  ✓ done  ○ idle", "● trabalhando  ◐ esperando você  ✓ terminou  ○ parado"},
+	"help.close.any": {"any key closes", "qualquer tecla fecha"},
 
 	// Pickers.
 	"pick.project":         {"New session: choose the project", "Nova sessão: escolha o projeto"},

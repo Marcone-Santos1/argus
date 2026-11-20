@@ -59,6 +59,7 @@ const (
 	modeHistory
 	modeFilter
 	modeInput
+	modeHelp
 )
 
 // Panel is the panel state.

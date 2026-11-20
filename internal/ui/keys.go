@@ -18,6 +18,8 @@ func (p *Panel) handleKey(k string) {
 				fn()
 			}
 		}
+	case modeHelp:
+		p.closePicker() // any key closes the help (and leaves the zoom)
 	case modeInput:
 		p.keyInput(k)
 	case modeFilter:
@@ -194,6 +196,9 @@ func (p *Panel) keyList(k string) {
 		p.startWorktree()
 	case "h":
 		p.openHistory()
+	case "?":
+		p.mode = modeHelp
+		p.setZoom(true) // full width, so descriptions are not cut
 	case "/":
 		p.mode = modeFilter
 	case "r":

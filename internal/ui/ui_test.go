@@ -216,3 +216,25 @@ func TestShellQuote(t *testing.T) {
 		t.Fatalf("shellQuote: %s", got)
 	}
 }
+
+func TestHelpScreen(t *testing.T) {
+	p := testPanel(t)
+	p.w, p.h = 60, 30
+	p.handleKey("?")
+	if p.mode != modeHelp {
+		t.Fatal("? opens the help")
+	}
+	lines := strings.Join(p.viewHelp(), "\n")
+	for _, h := range helpKeys {
+		if !strings.Contains(lines, h.key) {
+			t.Errorf("help lacks %q", h.key)
+		}
+	}
+	p.handleKey("x")
+	if p.mode != modeList {
+		t.Fatal("any key closes the help")
+	}
+	if len(p.agents) != 0 {
+		t.Fatal("the key that closes the help does nothing else")
+	}
+}
