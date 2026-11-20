@@ -33,7 +33,7 @@ macOS or Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (for w
 ## Install
 
 ```sh
-go install github.com/Marcone-Santos1/argus/cmd/argus@latest
+brew install marcone-santos1/tap/argus-panel   # or: go install github.com/Marcone-Santos1/argus/cmd/argus@latest
 argus install   # hooks for Claude Code, Codex and Gemini, the opencode plugin, tmux config and ~/.config/argus/config.toml
 argus           # open the panel
 ```
@@ -96,6 +96,8 @@ make bench    # measure performance with the panel open
 ```
 
 Every change must keep `argus bench` within the limits in the specification.
+
+Releases: push a tag (`git tag v0.1.0 && git push --tags`); CI builds the binaries and publishes the release. Then `scripts/update-tap.sh v0.1.0` updates the Homebrew formula.
 
 ## License
 

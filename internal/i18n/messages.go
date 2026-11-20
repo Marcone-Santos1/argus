@@ -75,6 +75,7 @@ usage:
   argus install      install hooks, the opencode plugin, tmux config and a default config
   argus uninstall    remove everything install added
   argus bench [-s N] measure performance (N seconds per CPU measurement, default 60)
+  argus version      print the version
 `, `argus: painel para várias sessões de Claude Code, opencode e Gemini
 
 uso:
@@ -82,6 +83,7 @@ uso:
   argus install      instala hooks, plugin do opencode, config do tmux e config padrão
   argus uninstall    remove tudo o que o install colocou
   argus bench [-s N] mede o desempenho (N segundos por medição de CPU, padrão 60)
+  argus version      mostra a versão
 `},
 	"cli.needInstall":  {"run `argus install` first", "rode `argus install` primeiro"},
 	"cli.insideArgus":  {"you are already inside Argus (Ctrl+\\ goes back to the list)", "você já está dentro do Argus (Ctrl+\\ volta para a lista)"},

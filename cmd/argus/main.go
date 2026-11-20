@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -24,6 +25,18 @@ import (
 )
 
 var started = time.Now()
+
+// version is set at release time with -ldflags "-X main.version=v1.2.3".
+var version = "dev"
+
+func versionString() string {
+	if version == "dev" {
+		if bi, ok := debug.ReadBuildInfo(); ok && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+			return bi.Main.Version
+		}
+	}
+	return version
+}
 
 func main() {
 	socket := os.Getenv("ARGUS_SOCKET")
@@ -57,6 +70,8 @@ func main() {
 			secs := fs.Int("s", 60, "seconds per CPU measurement")
 			_ = fs.Parse(os.Args[2:])
 			err = bench.Run(p, t, *secs, os.Stdout)
+		case "version", "--version", "-v":
+			fmt.Println("argus", versionString())
 		case "-h", "--help", "help":
 			fmt.Print(i18n.T("cli.usage"))
 		default:
