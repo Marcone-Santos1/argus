@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strings"
 	"testing"
 
 	"github.com/Marcone-Santos1/argus/internal/config"
@@ -100,5 +101,46 @@ command = "sleep 300"
 	}
 	if m := mainPanes(); len(m) != 2 || m[1].Role != tmux.RolePlaceholder {
 		t.Fatalf("after closing the visible one, the empty space is back: %+v", m)
+	}
+
+	// Switch the remaining session to another profile: same pane, same
+	// conversation, new command with --resume.
+	cfg2, err := config.Parse(`
+[[profile]]
+name = "one"
+command = "sh -c 'exec sleep 300' sh"
+[[profile]]
+name = "two"
+command = "sh -c 'exec sleep 301' sh"
+`, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	pn.d.Config = cfg2
+	a := pn.agents[0]
+	_ = tc.SetPaneOptions(a.Pane, "@argus_profile", "one")
+	if err := os.WriteFile(p.Status(a.ID), []byte("done\nconv-123\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	pn.reconcile()
+	pn.sel = pn.nthAgentItem(0)
+	pn.switchAccount()
+	if pn.mode != modePickProfile || len(pn.profChoices) != 1 || pn.profChoices[0].Name != "two" {
+		t.Fatalf("offers the other profile: mode=%v %+v (msg %q)", pn.mode, pn.profChoices, pn.msg)
+	}
+	pn.handleKey("enter")
+	ps, _ := tc.ListPanes()
+	var moved tmux.Pane
+	for _, x := range ps {
+		if x.AgentID == a.ID {
+			moved = x
+		}
+	}
+	if moved.ID != a.Pane || moved.Profile != "two" || moved.Session != "conv-123" {
+		t.Fatalf("same pane, new profile, same conversation: %+v", moved)
+	}
+	start, _ := tc.Run("display", "-p", "-t", a.Pane, "#{pane_start_command}")
+	if !strings.Contains(start, "--resume") || !strings.Contains(start, "conv-123") || !strings.Contains(start, "sleep 301") {
+		t.Fatalf("restarted with the new profile and --resume: %q", start)
 	}
 }

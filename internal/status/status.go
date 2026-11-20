@@ -35,6 +35,19 @@ func Read(path string) (string, time.Time) {
 	return s, fi.ModTime()
 }
 
+// Session returns the conversation id the hook stored on the second line.
+func Session(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	if len(lines) < 2 {
+		return ""
+	}
+	return strings.TrimSpace(lines[1])
+}
+
 // Write stores a state.
 func Write(path, s string) error {
 	return os.WriteFile(path, []byte(s+"\n"), 0o644)

@@ -304,6 +304,8 @@ func (p *Panel) viewProfiles() []string {
 		title = i18n.T("pick.resumeAccount")
 	case p.worktreeOf != "":
 		title = i18n.T("pick.worktreeProfile")
+	case p.switching != "":
+		title = i18n.T("pick.switchAccount")
 	}
 	body := []string{bold + fit(" "+title, w) + reset, dim + fit(" "+p.d.Paths.Pretty(p.chosenDir), w) + reset, ""}
 	for i, pr := range p.profChoices {
@@ -370,6 +372,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"h", "help.history"},
 	{"/", "help.filter"},
 	{"r", "help.rename"},
+	{"a", "help.account"},
 	{"Esc", "help.hide"},
 	{"x", "help.close"},
 	{"z", "help.zoom"},

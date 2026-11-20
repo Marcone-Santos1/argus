@@ -60,6 +60,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `h` | full history, searchable |
 | `/` | filter the list |
 | `r` | rename the session |
+| `a` | switch the session to another account (e.g. personal → work), keeping the conversation |
+| `?` | help: every key |
 | `Esc` | hide the session on the right without closing it (or clear the filter) |
 | `x` | close the session (and offer to delete its worktree) |
 | `z` | zoom |

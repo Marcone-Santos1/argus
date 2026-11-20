@@ -92,6 +92,8 @@ type Panel struct {
 	profChoices []config.Profile
 	worktreeOf  string // repository when creating a session in a worktree
 
+	switching string // session being moved to another account (key a)
+
 	inputPrompt string
 	input       string
 	inputFn     func(string)
@@ -347,6 +349,11 @@ func (p *Panel) isOpencode(a agent) bool {
 func (p *Panel) refreshStatus(i int, notify bool) {
 	a := &p.agents[i]
 	st, since := status.Read(p.d.Paths.Status(a.ID))
+	if sid := status.Session(p.d.Paths.Status(a.ID)); sid != "" && sid != a.Session {
+		// The hook saw the conversation id (new session, /resume or /clear).
+		a.Session = sid
+		_ = p.d.Tmux.SetPaneOptions(a.Pane, "@argus_session", sid)
+	}
 	if p.isOpencode(*a) {
 		if oc, ok := p.opencodeFor(a); ok && oc.Changed.After(since) {
 			st, since = oc.Status, oc.Changed

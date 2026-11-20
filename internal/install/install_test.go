@@ -216,16 +216,37 @@ func TestHookScript(t *testing.T) {
 	if err := os.WriteFile(script, []byte(HookScript(state, Shell())), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	run := func(id, arg string) string {
+	runIn := func(id, arg, stdin string) (string, string) {
 		cmd := exec.Command(script, arg)
 		cmd.Env = []string{"ARGUS_ID=" + id}
+		cmd.Stdin = strings.NewReader(stdin)
 		out, err := cmd.CombinedOutput()
 		if err != nil || len(out) > 0 {
 			t.Fatalf("hook %s: err=%v output=%q (it must print nothing)", arg, err, out)
 		}
 		b, _ := os.ReadFile(filepath.Join(state, id))
-		return strings.TrimSpace(string(b))
+		st, sid, _ := strings.Cut(strings.TrimSpace(string(b)), "\n")
+		return st, sid
 	}
+	run := func(id, arg string) string {
+		st, _ := runIn(id, arg, "")
+		return st
+	}
+
+	// SessionStart carries the conversation id; it survives every later event.
+	if st, sid := runIn("abc123", "start", `{"session_id":"7f3a-c2","cwd":"/p"}`+"\n"); st != "idle" || sid != "7f3a-c2" {
+		t.Fatalf("start: %q %q", st, sid)
+	}
+	if _, sid := runIn("abc123", "prompt", ""); sid != "7f3a-c2" {
+		t.Fatalf("the id stays: %q", sid)
+	}
+	if _, sid := runIn("abc123", "start", `{"session_id": "new-id", "x": 1}`); sid != "new-id" {
+		t.Fatalf("a new SessionStart (/clear, /resume) updates the id, spaced JSON too: %q", sid)
+	}
+	if _, sid := runIn("abc123", "start", `{"session_id":"bad;id"}`); sid != "new-id" {
+		t.Fatalf("an unsafe id is ignored and the old one kept: %q", sid)
+	}
+
 	steps := []struct{ arg, want string }{
 		{"start", "idle"},
 		{"notify", "idle"}, // a notification while not working changes nothing

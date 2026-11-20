@@ -59,6 +59,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `h` | histórico completo, com busca |
 | `/` | filtra a lista |
 | `r` | renomeia a sessão |
+| `a` | troca a conta da sessão (ex.: pessoal → trabalho), mantendo a conversa |
+| `?` | ajuda: todas as teclas |
 | `Esc` | esconde a sessão da direita sem encerrar (ou limpa o filtro) |
 | `x` | encerra a sessão (e oferece apagar a worktree) |
 | `z` | tela cheia |

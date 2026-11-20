@@ -239,21 +239,50 @@ func (p *Panel) startAgent(dir string, prof config.Profile, resume *history.Entr
 	p.createAgent(dir, prof, resume, wt)
 }
 
+// launch returns the tmux -e options and the command for starting a profile
+// in a session: the user's login shell (same PATH and aliases as a terminal)
+// running the profile's command, with the resume arguments when resuming.
+// Variables other profiles set and this one does not are unset, so switching
+// accounts never inherits the previous account's CLAUDE_CONFIG_DIR.
+func (p *Panel) launch(id string, prof config.Profile, resume *history.Entry) (env, cmd []string) {
+	env = []string{"-e", "ARGUS_ID=" + id}
+	for k, v := range prof.Env {
+		env = append(env, "-e", k+"="+v)
+	}
+	line := ""
+	unset := map[string]bool{}
+	for _, other := range p.d.Config.Profiles {
+		for k := range other.Env {
+			if _, mine := prof.Env[k]; !mine && !unset[k] {
+				unset[k] = true
+				line += "unset " + k + "; "
+			}
+		}
+	}
+	line += "exec " + prof.Command
+	if resume != nil {
+		for _, a := range history.ResumeArgs(resume.Tool, resume.ID) {
+			line += " " + shellQuote(a)
+		}
+	}
+	shell := os.Getenv("SHELL")
+	if shell == "" {
+		shell = "/bin/zsh"
+	}
+	return env, []string{shell, "-l", "-i", "-c", line}
+}
+
 // shellQuote protects an argument for a shell command line.
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Entry, wtRepo string) {
 	p.closePicker()
 	p.worktreeOf = ""
-	command := prof.Command
 	session := ""
 	if resume != nil {
 		if !history.SafeID(resume.ID) {
 			p.flash(i18n.T("msg.badID"))
 			return
-		}
-		for _, a := range history.ResumeArgs(resume.Tool, resume.ID) {
-			command += " " + shellQuote(a)
 		}
 		session = resume.ID
 	}
@@ -268,16 +297,11 @@ func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Ent
 	}
 	_ = status.Write(p.d.Paths.Status(id), status.Idle)
 
-	shell := os.Getenv("SHELL")
-	if shell == "" {
-		shell = "/bin/zsh"
-	}
-	args := []string{"new-window", "-d", "-t", tmux.Session + ":", "-n", id, "-c", dir, "-e", "ARGUS_ID=" + id}
-	for k, v := range prof.Env {
-		args = append(args, "-e", k+"="+v)
-	}
-	args = append(args, "-P", "-F", "#{pane_id}", shell, "-l", "-i", "-c", "exec "+command)
-	paneID, err := p.d.Tmux.Run(args...)
+	env, cmd := p.launch(id, prof, resume)
+	args := []string{"new-window", "-d", "-t", tmux.Session + ":", "-n", id, "-c", dir}
+	args = append(args, env...)
+	args = append(args, "-P", "-F", "#{pane_id}")
+	paneID, err := p.d.Tmux.Run(append(args, cmd...)...)
 	if err != nil {
 		p.flash(err.Error())
 		return
@@ -388,4 +412,76 @@ func clamp(i, n int) int {
 		i = 0
 	}
 	return i
+}
+
+// switchAccount reopens the selected session's conversation under another
+// profile of the same program (another Claude account, for example). The
+// process is restarted in the same pane with --resume, so the conversation,
+// folder and place in the list stay the same.
+func (p *Panel) switchAccount() {
+	a := p.current()
+	if a == nil {
+		return
+	}
+	cur, ok := p.profileOf(a.Profile)
+	if !ok {
+		return
+	}
+	var choices []config.Profile
+	for _, pr := range p.d.Config.ProfilesFor(cur.Label()) {
+		if pr.Name != a.Profile {
+			choices = append(choices, pr)
+		}
+	}
+	if len(choices) == 0 {
+		p.flash(i18n.T("msg.noOtherAccount", cur.Label()))
+		return
+	}
+	if a.Session == "" || !history.SafeID(a.Session) {
+		p.flash(i18n.T("msg.noSessionID"))
+		return
+	}
+	p.switching = a.ID
+	p.chosenDir = a.Dir
+	p.resume = nil
+	p.worktreeOf = ""
+	p.backMode = modeList
+	p.askProfile(choices, choices[0].Name)
+}
+
+func (p *Panel) doSwitch(prof config.Profile) {
+	id := p.switching
+	p.switching = ""
+	p.closePicker()
+	var a *agent
+	for i := range p.agents {
+		if p.agents[i].ID == id {
+			a = &p.agents[i]
+		}
+	}
+	if a == nil {
+		return
+	}
+	target := *a
+	do := func() {
+		cur, _ := p.profileOf(target.Profile)
+		resume := &history.Entry{Tool: cur.Label(), ID: target.Session}
+		env, cmd := p.launch(target.ID, prof, resume)
+		args := append([]string{"respawn-pane", "-k", "-t", target.Pane, "-c", target.Dir}, env...)
+		if _, err := p.d.Tmux.Run(append(args, cmd...)...); err != nil {
+			p.flash(err.Error())
+			return
+		}
+		_ = p.d.Tmux.SetPaneOptions(target.Pane, "@argus_profile", prof.Name, "@argus_session", target.Session)
+		_ = os.WriteFile(p.d.Paths.Status(target.ID), []byte(status.Idle+"\n"+target.Session+"\n"), 0o644)
+		p.flash(i18n.T("msg.switched", target.Name, prof.Name))
+		p.reconcile()
+		p.selectKey("a:" + target.ID)
+		p.focusSession()
+	}
+	if target.Status == status.Working || target.Status == status.Waiting {
+		p.confirm(i18n.T("msg.switchActive", target.Name), do)
+		return
+	}
+	do()
 }

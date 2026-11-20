@@ -139,6 +139,7 @@ func (p *Panel) keyHistory(k string) {
 func (p *Panel) keyPickProfile(k string) {
 	switch k {
 	case "esc", "ctrl-C":
+		p.switching = ""
 		switch p.backMode {
 		case modeHistory:
 			p.mode = modeHistory
@@ -156,6 +157,10 @@ func (p *Panel) keyPickProfile(k string) {
 			p.profSel++
 		}
 	case "enter":
+		if p.switching != "" {
+			p.doSwitch(p.profChoices[p.profSel])
+			return
+		}
 		p.startAgent(p.chosenDir, p.profChoices[p.profSel], p.resume)
 	default:
 		if len(k) == 1 && k >= "1" && k <= "9" {
@@ -196,6 +201,8 @@ func (p *Panel) keyList(k string) {
 		p.startWorktree()
 	case "h":
 		p.openHistory()
+	case "a":
+		p.switchAccount()
 	case "?":
 		p.mode = modeHelp
 		p.setZoom(true) // full width, so descriptions are not cut
