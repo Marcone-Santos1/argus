@@ -1,0 +1,293 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Argus — especificação</title>
+<style>
+:root{--bg:#fbfaf8;--ink:#1f1e1c;--quiet:#6b6862;--line:#d9d6d0;--edge:#8a8680;--tint:#f1efea;--accent:#2f6fd6;--accent-bg:rgba(47,111,214,.12);--code:#f0eee9}
+@media (prefers-color-scheme: dark){:root{--bg:#1a1b1e;--ink:#ecebe8;--quiet:#a19e98;--line:#34363b;--edge:#8d8a85;--tint:#24262a;--accent:#6ea3ff;--accent-bg:rgba(110,163,255,.14);--code:#26282c}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+main{max-width:760px;margin:0 auto;padding:48px 16px 96px}
+h1{font-size:2rem;line-height:1.2;margin:0 0 4px}
+h2{font-size:1.3rem;margin:48px 0 12px;padding-top:12px;border-top:1px solid var(--line)}
+.byline{color:var(--quiet);font-size:.9rem;margin-bottom:24px}
+.lead{font-size:1.08rem}
+code{font:.88em ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--code);padding:1px 5px;border-radius:4px}
+pre{background:var(--code);padding:14px 16px;border-radius:8px;overflow-x:auto;line-height:1.3}
+pre code{background:none;padding:0;font-size:13px}
+table{width:100%;border-collapse:collapse;margin:12px 0;font-size:.94rem;display:block;overflow-x:auto}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-weight:600;color:var(--quiet);font-size:.85rem}
+figure{margin:20px 0}
+figure svg{width:100%;height:auto;display:block}
+figcaption{color:var(--quiet);font-size:.85rem;margin-top:6px}
+ul.check{list-style:none;padding-left:0}
+ul.check li::before{content:"☐ ";color:var(--quiet)}
+nav{font-size:.9rem;color:var(--quiet);margin-bottom:8px}
+nav a{color:var(--quiet);margin-right:10px}
+svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+</style>
+</head>
+<body>
+<main>
+<h1>Argus — especificação</h1>
+<div class="byline">20/11/2026 · rascunho para discussão</div>
+<nav><a href="#escopo">Escopo</a><a href="#arquitetura">Arquitetura</a><a href="#perfis">Perfis</a><a href="#estados">Estados</a><a href="#regras">Regras</a><a href="#desempenho">Desempenho</a><a href="#interface">Interface</a><a href="#terminal">Terminal</a><a href="#fases">Fases</a><a href="#perguntas">Decisões</a></nav>
+
+<p class="lead">O Argus é um painel de terminal que roda e acompanha, lado a lado, várias sessões de Claude Code (conta pessoal e da empresa) e opencode. Ele usa tmux por baixo e tem um orçamento de desempenho rígido, para nunca travar a máquina por excesso de processos, como já aconteceu com outra ferramenta do tipo.</p>
+
+<h2 id="escopo">Objetivo e escopo</h2>
+<p>O Argus organiza e troca de sessões. Quem conversa é sempre o próprio CLI (<code>claude</code> ou <code>opencode</code>), rodando num terminal de verdade, então memória, MCPs, skills, hooks e permissões continuam iguais.</p>
+<p><strong>Faz:</strong></p>
+<ul>
+<li>Lista todas as sessões, agrupadas por perfil, com o status de cada uma.</li>
+<li>Mostra a sessão selecionada à direita, ao vivo e interativa.</li>
+<li>Cria sessões novas escolhendo perfil e projeto, com worktree opcional.</li>
+<li>Lista as conversas antigas do Claude Code e do opencode e retoma qualquer uma.</li>
+<li>Avisa no macOS quando um agente fica esperando você.</li>
+<li>Mostra CPU e processos criados por minuto, e alerta se disparar.</li>
+</ul>
+<p><strong>Não faz:</strong></p>
+<ul>
+<li>Editor, navegador ou visualizador de arquivos. Para isso existem o editor e o navegador que você já usa.</li>
+<li>Intermediar a conversa ou ler o conteúdo dela.</li>
+<li>Rodar daemon próprio ou qualquer processo quando o painel está fechado.</li>
+<li>Sincronizar com a nuvem ou com outras máquinas.</li>
+</ul>
+
+<h2 id="arquitetura">Arquitetura</h2>
+<p>Os agentes e o painel nunca conversam diretamente: os agentes escrevem um arquivo de estado e o painel só lê esses arquivos. Se o painel fechar ou travar, as sessões seguem rodando.</p>
+<figure>
+<svg viewBox="0 0 760 488" role="img" aria-label="Os agentes só escrevem arquivos de estado; o painel só lê" font-size="13">
+<defs><marker id="arq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--edge)"/></marker></defs>
+<text x="24" y="30" font-size="15" font-weight="600" fill="var(--ink)">Os agentes só escrevem arquivos de estado; o painel só lê</text>
+<rect x="40" y="56" width="680" height="112" rx="8" fill="var(--tint)" stroke="var(--edge)" stroke-width="1.25"/>
+<text x="56" y="80" font-weight="600" fill="var(--ink)">tmux -L argus</text>
+<text x="168" y="80" font-size="11.5" fill="var(--quiet)">o único processo que continua rodando</text>
+<g fill="none" stroke="var(--edge)" stroke-width="1.25">
+<rect x="56" y="96" width="200" height="56" rx="8"/><rect x="280" y="96" width="200" height="56" rx="8"/><rect x="504" y="96" width="200" height="56" rx="8"/>
+<rect x="56" y="200" width="200" height="56" rx="8"/><rect x="280" y="200" width="200" height="56" rx="8"/>
+<rect x="210" y="304" width="340" height="56" rx="8"/>
+</g>
+<rect x="210" y="408" width="340" height="56" rx="8" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="156" y="120" font-weight="600" fill="var(--ink)">claude pessoal</text><text x="156" y="136" font-size="11.5" fill="var(--quiet)">config em ~/.claude</text>
+<text x="380" y="120" font-weight="600" fill="var(--ink)">claude empresa</text><text x="380" y="136" font-size="11.5" fill="var(--quiet)">config em ~/.claude-work</text>
+<text x="604" y="120" font-weight="600" fill="var(--ink)">opencode</text><text x="604" y="136" font-size="11.5" fill="var(--quiet)">status por plugin interno</text>
+<text x="156" y="224" font-weight="600" fill="var(--ink)">hook sh</text><text x="156" y="240" font-size="11.5" fill="var(--quiet)">grava o estado em até 5 ms</text>
+<text x="380" y="224" font-weight="600" fill="var(--ink)">hook sh</text><text x="380" y="240" font-size="11.5" fill="var(--quiet)">grava o estado em até 5 ms</text>
+<text x="380" y="328" font-weight="600" fill="var(--ink)">Arquivos de estado</text><text x="380" y="344" font-size="11.5" fill="var(--quiet)">um JSON por sessão: status, hora, perfil, pasta</text>
+<text x="380" y="432" font-weight="600" fill="var(--ink)">Painel argus (Go)</text><text x="380" y="448" font-size="11.5" fill="var(--quiet)">reage a arquivos e teclas, sem polling</text>
+</g>
+<g fill="none" stroke="var(--edge)" stroke-width="1.25" marker-end="url(#arq-arrow)">
+<path d="M156 152V200"/><path d="M380 152V200"/><path d="M156 256V332H210"/><path d="M380 256V304"/><path d="M604 152V332H550"/><path d="M380 360V408"/><path d="M210 436H24V112H40"/>
+</g>
+<g font-size="11.5" fill="var(--quiet)">
+<text x="164" y="182">evento</text><text x="388" y="182">evento</text>
+<text x="596" y="292" text-anchor="end">plugin, sem processo novo</text>
+<text x="388" y="390">kqueue</text>
+<text x="117" y="426" text-anchor="middle">mostra a sessão escolhida</text>
+</g>
+</svg>
+<figcaption>Arquitetura do Argus · 3 perfis, 1 painel</figcaption>
+</figure>
+<p>O painel também dispara as notificações do macOS quando um arquivo muda para "esperando você". O CLI genérico, sem hook, é acompanhado pela atividade da própria janela no tmux.</p>
+
+<h2 id="perfis">Perfis e projetos</h2>
+<p>Um perfil é um comando com seu ambiente. Os três iniciais reaproveitam o que já está configurado nesta máquina, e qualquer CLI novo entra com uma linha a mais em <code>~/.config/argus/config.toml</code>.</p>
+<table>
+<thead><tr><th>Perfil</th><th>Comando</th><th>Ambiente</th><th>De onde vem o status</th></tr></thead>
+<tbody>
+<tr><td>claude-pessoal</td><td><code>claude</code></td><td>config padrão em <code>~/.claude</code></td><td>hook <code>sh</code> em <code>~/.claude/settings.json</code></td></tr>
+<tr><td>claude-work</td><td><code>claude</code></td><td><code>CLAUDE_CONFIG_DIR=~/.claude-work</code></td><td>hook <code>sh</code> em <code>~/.claude-work/settings.json</code></td></tr>
+<tr><td>opencode</td><td><code>opencode</code></td><td>config em <code>~/.config/opencode</code></td><td>plugin em <code>~/.config/opencode/plugins/</code></td></tr>
+<tr><td>(genérico)</td><td>qualquer CLI</td><td>o que a linha do perfil definir</td><td>atividade da janela no tmux</td></tr>
+</tbody>
+</table>
+<p><strong>Como uma pasta escolhe o perfil:</strong></p>
+<ol>
+<li>Se a pasta casa com uma regra do config, usa o perfil da regra. Não vem nenhuma regra de fábrica, porque os projetos da empresa ficam misturados em <code>~/Projects</code>.</li>
+<li>Senão, usa o último perfil escolhido para aquela pasta, que o Argus lembra.</li>
+<li>Senão, pergunta na hora de criar a sessão, com <code>claude-pessoal</code> pré-selecionado. Na prática, cada projeto da empresa é marcado uma vez, na primeira sessão.</li>
+</ol>
+<p>Os projetos oferecidos no <code>n</code> vêm das raízes listadas no config (de início, <code>~/Projects</code> até dois níveis de profundidade e <code>~/Sites</code>), ordenados pelo uso mais recente.</p>
+
+<h2 id="estados">Estados da sessão</h2>
+<p>Toda sessão está em um de cinco estados. Os eventos dos hooks (Claude) e do plugin (opencode) movem a sessão de um estado para outro; o CLI genérico usa só "trabalhando" e "parado", pela atividade da tela.</p>
+<figure>
+<svg viewBox="0 0 760 360" role="img" aria-label="Uma sessão só sai de trabalhando quando o agente para ou pede algo" font-size="13">
+<defs><marker id="st-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--edge)"/></marker></defs>
+<text x="24" y="30" font-size="15" font-weight="600" fill="var(--ink)">Uma sessão só sai de "trabalhando" quando o agente para ou pede algo</text>
+<g fill="none" stroke="var(--edge)" stroke-width="1.25">
+<rect x="24" y="120" width="140" height="56" rx="8"/>
+<rect x="568" y="56" width="168" height="56" rx="8"/>
+<rect x="568" y="184" width="168" height="56" rx="8"/>
+<rect x="296" y="280" width="168" height="56" rx="8"/>
+</g>
+<rect x="296" y="120" width="168" height="56" rx="8" fill="var(--accent-bg)" stroke="var(--accent)" stroke-width="2"/>
+<g text-anchor="middle">
+<text x="94" y="144" font-weight="600" fill="var(--ink)">○ parado</text><text x="94" y="160" font-size="11.5" fill="var(--quiet)">sessão recém-aberta</text>
+<text x="380" y="144" font-weight="600" fill="var(--ink)">● trabalhando</text><text x="380" y="160" font-size="11.5" fill="var(--quiet)">o agente está agindo</text>
+<text x="652" y="80" font-weight="600" fill="var(--ink)">◐ espera você</text><text x="652" y="96" font-size="11.5" fill="var(--quiet)">permissão ou pergunta</text>
+<text x="652" y="208" font-weight="600" fill="var(--ink)">✓ terminou</text><text x="652" y="224" font-size="11.5" fill="var(--quiet)">resposta pronta</text>
+<text x="380" y="304" font-weight="600" fill="var(--ink)">✕ encerrada</text><text x="380" y="320" font-size="11.5" fill="var(--quiet)">o processo saiu</text>
+</g>
+<g fill="none" stroke="var(--edge)" stroke-width="1.25" marker-end="url(#st-arrow)">
+<path d="M164 148H296"/>
+<path d="M464 136L568 92"/>
+<path d="M568 76H380V120"/>
+<path d="M464 160L568 204"/>
+<path d="M652 240V264H420V176"/>
+<path d="M380 176V280"/>
+</g>
+<g font-size="11.5" fill="var(--quiet)">
+<text x="230" y="140" text-anchor="middle">você manda um prompt</text>
+<text x="498" y="100" text-anchor="middle">pede permissão</text>
+<text x="474" y="68" text-anchor="middle">você responde</text>
+<text x="498" y="200" text-anchor="middle">o agente para</text>
+<text x="536" y="258" text-anchor="middle">novo prompt</text>
+<text x="372" y="236" text-anchor="end">sai de</text>
+<text x="372" y="250" text-anchor="end">qualquer estado</text>
+</g>
+</svg>
+<figcaption>Estados da sessão · 5 estados</figcaption>
+</figure>
+<table>
+<thead><tr><th>Mudança</th><th>Claude Code (hook)</th><th>opencode (plugin)</th></tr></thead>
+<tbody>
+<tr><td>→ trabalhando</td><td><code>UserPromptSubmit</code></td><td>sessão fica ocupada</td></tr>
+<tr><td>→ espera você</td><td><code>PermissionRequest</code>, <code>Notification</code></td><td>pedido de permissão</td></tr>
+<tr><td>→ terminou</td><td><code>Stop</code></td><td>sessão fica ociosa</td></tr>
+<tr><td>→ encerrada</td><td><code>SessionEnd</code> ou a janela do tmux fecha</td><td>a janela do tmux fecha</td></tr>
+</tbody>
+</table>
+
+<h2 id="historico">Histórico de conversas</h2>
+<p>A tecla <code>h</code> lista as conversas antigas, mais recentes primeiro, e o <code>Enter</code> retoma a escolhida à direita com o histórico completo.</p>
+<table>
+<thead><tr><th>Fonte</th><th>Onde fica</th><th>Como retoma</th></tr></thead>
+<tbody>
+<tr><td>Claude Code (as duas contas)</td><td><code>~/.claude/projects/*/*.jsonl</code></td><td><code>claude --resume &lt;id&gt;</code></td></tr>
+<tr><td>opencode</td><td><code>~/.local/share/opencode/opencode.db</code></td><td><code>opencode --session &lt;id&gt;</code></td></tr>
+</tbody>
+</table>
+<p>A conta vem do registro <code>session-owner</code> da conversa, comparado com a conta de cada pasta de config do Claude. Conversas de versões antigas não têm esse registro: nelas, o Argus pergunta a conta. Conversas cuja pasta não existe mais não aparecem.</p>
+<p>As transcrições somam cerca de 1,8 GB, então o Argus lê só os primeiros e os últimos 512 KB de cada arquivo, apenas quando você aperta <code>h</code>. Um índice em <code>~/.local/state/argus/_history.json</code> faz com que só os arquivos que mudaram sejam relidos. O banco do opencode é lido com o <code>sqlite3</code> do sistema, em modo somente leitura.</p>
+
+<h2 id="regras">Regras</h2>
+<p>Estas regras valem para todo o código. Uma mudança que quebre qualquer uma delas não entra.</p>
+<ol>
+<li><strong>Nada de daemon.</strong> Com o painel fechado, o Argus não tem nenhum processo próprio rodando. As sessões vivem no tmux, que é o único processo que fica.</li>
+<li><strong>Hook é <code>sh</code> puro.</strong> O hook de status de cada evento usa só builtins do shell e uma escrita de arquivo. Não pode chamar node, python, bun, curl nem rede.</li>
+<li><strong>No máximo um processo por evento.</strong> Um evento do agente gera, no máximo, o <code>sh</code> do hook. O plugin do opencode roda dentro do próprio opencode e não cria processo.</li>
+<li><strong>Nenhum polling no painel.</strong> O painel só reage a mudanças de arquivo (kqueue) e a teclas. As únicas coisas periódicas são o relógio e a medição de CPU, a cada 2 s no máximo.</li>
+<li><strong>Prévia só da sessão visível.</strong> O painel nunca lê a tela de sessões que não estão selecionadas.</li>
+<li><strong>Não mexer no que é dos outros.</strong> O Argus acrescenta o próprio hook ao lado do rtk e do ai-memory, sem alterar nem reordenar esses hooks, e remove só o próprio ao desinstalar. Nunca escreve em <code>.claude/settings.local.json</code> de projeto.</li>
+<li><strong>Fora do Argus, o hook não faz nada.</strong> Sem a variável <code>ARGUS_ID</code>, o hook sai na primeira linha, e o Claude aberto num terminal comum não é afetado.</li>
+<li><strong>Nunca ler a conversa.</strong> O estado guarda só status, horário, perfil e pasta. O texto do prompt e as respostas não são gravados.</li>
+<li><strong>Limite de sessões.</strong> Existe um máximo configurável de sessões simultâneas (padrão 8). Acima disso, <code>n</code> pede confirmação.</li>
+<li><strong>Desinstalação limpa.</strong> <code>argus uninstall</code> remove os hooks, o plugin e <code>~/.config/argus</code>, e lista o que removeu.</li>
+</ol>
+
+<h2 id="desempenho">Desempenho</h2>
+<p>O Argus tem que pesar quase nada: no Monitor de Atividade, ele aparece com nome próprio, mas com consumo desprezível perto dos próprios agentes. Os números abaixo são metas. Cada fase só é entregue se o <code>argus bench</code> mostrar todos dentro do limite neste MacBook Air M4.</p>
+<table>
+<thead><tr><th>Medida</th><th>Limite</th><th>Como medir</th></tr></thead>
+<tbody>
+<tr><td>CPU do painel parado</td><td>&lt; 0,5%</td><td>média de 60 s com 8 sessões abertas e nenhuma ativa</td></tr>
+<tr><td>CPU do painel com tudo ativo</td><td>&lt; 3%</td><td>média de 60 s com 8 sessões trabalhando</td></tr>
+<tr><td>Memória do painel</td><td>&lt; 30 MB</td><td>RSS após 1 h de uso</td></tr>
+<tr><td>Tempo do hook por evento</td><td>&lt; 5 ms (p95)</td><td>1.000 execuções seguidas do hook</td></tr>
+<tr><td>Processos criados pelo Argus</td><td>≤ 1 por evento do agente</td><td>contagem de PIDs durante o bench</td></tr>
+<tr><td>Processos com o painel fechado</td><td>0</td><td><code>pgrep argus</code></td></tr>
+<tr><td>Do evento até a lista mudar</td><td>&lt; 100 ms</td><td>carimbo de hora no arquivo de estado versus a renderização</td></tr>
+<tr><td>Abrir o painel</td><td>&lt; 150 ms</td><td>do comando até o primeiro quadro</td></tr>
+<tr><td>Trocar de sessão</td><td>&lt; 50 ms</td><td>da tecla até a sessão aparecer à direita</td></tr>
+<tr><td>Abrir o histórico</td><td>&lt; 150 ms</td><td>da tecla <code>h</code> até a lista aparecer</td></tr>
+</tbody>
+</table>
+<p><strong>Guarda contra tempestade de processos.</strong> O painel acompanha quantos processos a máquina inteira cria por minuto. Acima de 2.000/min por 30 s, ele mostra um alerta no rodapé com o nome do executável que mais aparece e manda uma notificação no macOS. Foi esse padrão (cerca de 20.000 execuções de node por minuto) que travou o Mac em 20/11. O alerta só avisa; o Argus nunca mata processos sozinha.</p>
+
+<h2 id="interface">Interface e atalhos</h2>
+<p>O padrão é lado a lado: a lista fica fixa à esquerda, com cerca de 30% da largura, e a sessão selecionada fica à direita, interativa. Com <code>z</code> a sessão ocupa a tela inteira, e o mesmo atalho volta para o lado a lado.</p>
+<pre><code>┌ argus ───────────────────────────┬──────────────────────────────────┐
+│ api  ~/Projects                  │ &gt; corrige o teste de upload      │
+│  1 ▶ claude pes          ● 2m    │                                  │
+│  2   opencode oc         ◐ 40s   │ ⏺ Vou rodar os testes primeiro.  │
+│      Ajustar upload     pes  1d  │   ✓ 42 passed  ✗ 1 failed        │
+│                                  │                                  │
+│ site  ~/Projects/Code            │ &gt; █                              │
+│  3   claude emp          ✓ 12m   │                                  │
+│      Nova página de preços emp 3d│                                  │
+│                                  │                                  │
+│ docs  ~/Projects                 │                                  │
+│      Revisar README     oc   5d  │                                  │
+├──────────────────────────────────┤                                  │
+│ 3 sessões                        │                                  │
+└──────────────────────────────────┴──────────────────────────────────┘</code></pre>
+<p>A lista é agrupada por pasta. Primeiro vêm as pastas com sessões abertas: as sessões numeradas, com status, e embaixo até 3 conversas antigas da mesma pasta. Depois vêm as pastas só com conversas antigas, na ordem do uso mais recente (até 8). A etiqueta mostra a conta: <code>pes</code> (pessoal), <code>emp</code> (empresa), <code>oc</code> (opencode) ou <code>?</code> (conversa antiga sem conta registrada).</p>
+<p>O foco do teclado fica na lista ou na sessão. <code>Ctrl+\</code> alterna entre os dois de qualquer lugar. As outras teclas valem quando o foco está na lista.</p>
+<table>
+<thead><tr><th>Tecla</th><th>Ação</th></tr></thead>
+<tbody>
+<tr><td><code>↑</code> <code>↓</code> ou <code>j</code> <code>k</code></td><td>seleciona a sessão, e a da direita troca na hora</td></tr>
+<tr><td><code>Enter</code></td><td>põe o foco na sessão selecionada; numa conversa antiga, retoma a conversa</td></tr>
+<tr><td><code>Esc</code></td><td>esconde a sessão da direita sem encerrá-la</td></tr>
+<tr><td><code>Ctrl+\</code></td><td>alterna o foco entre a lista e a sessão</td></tr>
+<tr><td><code>1</code> a <code>9</code></td><td>vai direto para a sessão pelo número</td></tr>
+<tr><td><code>Tab</code></td><td>pula para a próxima sessão esperando você</td></tr>
+<tr><td><code>n</code></td><td>nova sessão: escolhe projeto (com busca) e perfil</td></tr>
+<tr><td><code>h</code></td><td>histórico: conversas antigas, filtráveis, e <code>Enter</code> retoma</td></tr>
+<tr><td><code>w</code></td><td>nova sessão numa worktree nova do projeto selecionado</td></tr>
+<tr><td><code>z</code></td><td>sessão em tela cheia ou lado a lado</td></tr>
+<tr><td><code>r</code></td><td>renomeia a sessão</td></tr>
+<tr><td><code>x</code></td><td>encerra a sessão, pedindo confirmação se estiver trabalhando</td></tr>
+<tr><td><code>/</code></td><td>filtra a lista por nome</td></tr>
+<tr><td><code>q</code></td><td>fecha o painel; as sessões continuam vivas no tmux</td></tr>
+</tbody>
+</table>
+<p><strong>Símbolos:</strong> <code>●</code> trabalhando, <code>◐</code> esperando você, <code>✓</code> terminou, <code>○</code> parado, <code>✕</code> encerrada com erro. O número ao lado é há quanto tempo está naquele estado.</p>
+
+<h2 id="terminal">Integração com o terminal</h2>
+<p>O Argus usa um servidor tmux só dele (<code>tmux -L argus</code>), com um arquivo de configuração próprio. Assim ele não interfere com outro tmux que você venha a usar. Cada item abaixo tem um teste manual na lista de entrega da fase 1.</p>
+<table>
+<thead><tr><th>O que precisa funcionar igual</th><th>Ajuste no tmux do Argus</th></tr></thead>
+<tbody>
+<tr><td><code>Shift+Enter</code> quebra linha no Claude</td><td><code>extended-keys on</code> e formato CSI u</td></tr>
+<tr><td>Cores completas (24 bits)</td><td><code>default-terminal tmux-256color</code> + <code>terminal-features ...:RGB</code></td></tr>
+<tr><td>Rolagem com o mouse e seleção de texto</td><td><code>mouse on</code></td></tr>
+<tr><td>Colar texto longo e imagens</td><td><code>set-clipboard on</code>; o Claude lê a imagem direto da área de transferência</td></tr>
+<tr><td>Notificações e sinal sonoro do Claude</td><td><code>allow-passthrough on</code> e <code>bell-action any</code></td></tr>
+<tr><td><code>Esc</code> responde na hora</td><td><code>escape-time 0</code></td></tr>
+<tr><td>Mesmo PATH e aliases do <code>.zshrc</code> (Herd, Go, sdkman)</td><td>cada sessão abre com <code>zsh -l -i -c</code></td></tr>
+<tr><td>Histórico longo da sessão</td><td><code>history-limit 50000</code></td></tr>
+</tbody>
+</table>
+<p>A barra de status do tmux fica desligada, porque o painel já mostra tudo. O prefixo do tmux também fica desligado para não roubar teclas do Claude: o único atalho global é <code>Ctrl+\</code>.</p>
+
+<h2 id="fases">Fases de entrega</h2>
+<p>Cada fase termina com o <code>argus bench</code> dentro dos limites e com você usando o Argus no dia a dia antes da próxima começar.</p>
+<ol>
+<li><strong>Base.</strong> Instalar o tmux e criar a config do tmux do Argus. Perfis, lista agrupada, lado a lado, <code>n</code>, <code>Enter</code>, <code>Ctrl+\</code>, <code>x</code>, <code>q</code>. Hooks dos dois Claude e o <code>argus bench</code>.</li>
+<li><strong>Status completo.</strong> Plugin do opencode, status genérico pela atividade do tmux, notificações no macOS e a tecla <code>Tab</code> para a próxima sessão esperando você.</li>
+<li><strong>Worktrees.</strong> A tecla <code>w</code> cria a worktree e a sessão nela. Ao encerrar, o Argus pergunta se apaga a worktree, e só apaga se ela não tiver mudanças sem commit.</li>
+<li><strong>Guarda e acabamento.</strong> Rodapé com CPU e processos por minuto, alerta de tempestade de processos, <code>/</code>, <code>r</code>, <code>1</code> a <code>9</code>, <code>argus uninstall</code>.</li>
+</ol>
+
+<h2 id="perguntas">Decisões</h2>
+<table>
+<thead><tr><th>Assunto</th><th>Decisão</th></tr></thead>
+<tbody>
+<tr><td>Nome</td><td><code>argus</code>, de Argos, o gigante de cem olhos que vigiava sem dormir. Projeto em <code>~/Projects/Code/argus</code>.</td></tr>
+<tr><td>Projetos da empresa</td><td>Ficam junto em <code>~/Projects</code>; o perfil é lembrado por pasta.</td></tr>
+<tr><td>Atalho global</td><td><code>Ctrl+\</code>, porque <code>Ctrl+Espaço</code> é a troca de idioma do teclado no macOS.</td></tr>
+<tr><td>CLIs na fase 1</td><td>Só claude pessoal, claude empresa e opencode. Outros entram depois pelo config.</td></tr>
+<tr><td>Linguagem do painel</td><td>Go puro, sem Bubble Tea: o Bubble Tea redesenha a tela 60 vezes por segundo mesmo parado, e o painel só deve acordar com tecla, arquivo ou o relógio de 2 s.</td></tr>
+<tr><td>Shell do hook</td><td><code>/bin/dash</code>: no macOS, <code>/bin/sh</code> passa pelo bash e custava ~4,9 ms por evento; com dash, 3,4 ms.</td></tr>
+</tbody>
+</table>
+</main>
+</body>
+</html>
