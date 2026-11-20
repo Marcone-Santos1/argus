@@ -16,6 +16,10 @@ sum() { awk -v f="argus_${version}_$1.tar.gz" '$2 == f { print $1 }' "$work/chec
 url() { echo "https://github.com/$repo/releases/download/$tag/argus_${version}_$1.tar.gz"; }
 
 gh repo clone "$tap" "$work/tap" -- --quiet
+# Commit with the GitHub no-reply address, never the personal e-mail.
+login=$(gh api user -q .login)
+git -C "$work/tap" config user.email "$(gh api user -q .id)+$login@users.noreply.github.com"
+git -C "$work/tap" config user.name "$(gh api user -q '.name // .login')"
 mkdir -p "$work/tap/Formula"
 cat > "$work/tap/Formula/argus-panel.rb" <<EOF
 class ArgusPanel < Formula
