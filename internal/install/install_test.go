@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Marcone-Santos1/argus/internal/config"
 	"github.com/Marcone-Santos1/argus/internal/paths"
 )
 
@@ -18,7 +19,7 @@ const existing = `{
   "model": "opus",
   "hooks": {
     "PreToolUse": [{"matcher": "Bash", "hooks": [{"type": "command", "command": "rtk hook claude"}]}],
-    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "outro-hook stop"}]}]
+    "Stop": [{"matcher": "", "hooks": [{"type": "command", "command": "other-hook stop"}]}]
   }
 }`
 
@@ -26,70 +27,128 @@ func decode(t *testing.T, b []byte) map[string]any {
 	t.Helper()
 	var m map[string]any
 	if err := json.Unmarshal(b, &m); err != nil {
-		t.Fatalf("JSON inválido: %v\n%s", err, b)
+		t.Fatalf("invalid JSON: %v\n%s", err, b)
 	}
 	return m
 }
 
+func mustJSON(v any) string {
+	b, _ := json.Marshal(v)
+	return string(b)
+}
+
 func TestAddHooksKeepsOthers(t *testing.T) {
-	out, added, err := AddHooks([]byte(existing), hook)
+	out, added, err := AddHooks([]byte(existing), hook, ClaudeEvents, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if added != len(ClaudeEvents) {
-		t.Fatalf("eventos adicionados: %d", added)
+		t.Fatalf("events added: %d", added)
 	}
 	m := decode(t, out)
 	if m["model"] != "opus" {
-		t.Error("outras chaves devem ficar intactas")
+		t.Error("other keys must stay intact")
 	}
 	hooks := m["hooks"].(map[string]any)
 	stop := hooks["Stop"].([]any)
-	if len(stop) != 2 || !strings.Contains(string(mustJSON(stop[0])), "outro-hook") {
-		t.Fatalf("o hook que já existia continua primeiro: %s", mustJSON(stop))
+	if len(stop) != 2 || !strings.Contains(mustJSON(stop[0]), "other-hook") {
+		t.Fatalf("the existing hook stays first: %s", mustJSON(stop))
 	}
-	if !strings.Contains(string(mustJSON(stop[1])), hook+" stop") {
-		t.Fatalf("o do Argus vem depois: %s", mustJSON(stop))
+	if !strings.Contains(mustJSON(stop[1]), hook+" stop") {
+		t.Fatalf("the Argus hook comes after it: %s", mustJSON(stop))
 	}
 	if _, ok := hooks["PreToolUse"]; !ok {
-		t.Error("eventos que o Argus não usa continuam")
+		t.Error("events Argus does not use stay")
 	}
 
-	again, n, err := AddHooks(out, hook)
+	again, n, err := AddHooks(out, hook, ClaudeEvents, true)
 	if err != nil || n != 0 || !bytes.Equal(again, out) {
-		t.Fatalf("instalar de novo não muda nada: n=%d err=%v", n, err)
+		t.Fatalf("installing again changes nothing: n=%d err=%v", n, err)
 	}
 
-	back, removed, err := RemoveHooks(out, hook)
+	back, removed, err := RemoveHooks(out, hook, ClaudeEvents)
 	if err != nil || removed != len(ClaudeEvents) {
-		t.Fatalf("remoção: %d %v", removed, err)
+		t.Fatalf("removal: %d %v", removed, err)
 	}
-	mb := decode(t, back)
-	hb := mb["hooks"].(map[string]any)
+	hb := decode(t, back)["hooks"].(map[string]any)
 	if len(hb) != 2 || len(hb["Stop"].([]any)) != 1 {
-		t.Fatalf("depois de remover, sobra só o que existia: %s", back)
+		t.Fatalf("after removing, only the original hooks remain: %s", back)
 	}
 }
 
 func TestAddHooksEdgeCases(t *testing.T) {
-	out, added, err := AddHooks(nil, hook)
-	if err != nil || added != len(ClaudeEvents) {
-		t.Fatalf("arquivo vazio: %d %v", added, err)
+	out, added, err := AddHooks(nil, hook, GeminiEvents, false)
+	if err != nil || added != len(GeminiEvents) {
+		t.Fatalf("empty file: %d %v", added, err)
 	}
-	decode(t, out)
-	if _, _, err := AddHooks([]byte(`{"hooks": [`), hook); err == nil {
-		t.Fatal("JSON inválido não pode ser reescrito")
+	m := decode(t, out)
+	entry := m["hooks"].(map[string]any)["BeforeAgent"].([]any)[0].(map[string]any)
+	if _, has := entry["matcher"]; has {
+		t.Error("Gemini entries carry no matcher")
+	}
+	back, _, _ := RemoveHooks(out, hook, GeminiEvents)
+	if _, has := decode(t, back)["hooks"]; has {
+		t.Errorf("a hooks object Argus created is removed when empty: %s", back)
+	}
+	if _, _, err := AddHooks([]byte(`{"hooks": [`), hook, ClaudeEvents, true); err == nil {
+		t.Fatal("invalid JSON must not be rewritten")
 	}
 }
 
-func mustJSON(v any) []byte {
-	b, _ := json.Marshal(v)
-	return b
+func TestTargets(t *testing.T) {
+	home := t.TempDir()
+	p := paths.For(home, "")
+	cfg, err := config.Parse(`
+[[profile]]
+name = "a"
+command = "claude"
+[[profile]]
+name = "b"
+command = "claude"
+env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
+[[profile]]
+name = "g"
+command = "gemini"
+`, home)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := Targets(cfg, p)
+	var got []string
+	for _, x := range ts {
+		got = append(got, x.Tool+" "+x.File)
+	}
+	want := []string{
+		"claude " + filepath.Join(home, ".claude", "settings.json"),
+		"claude " + filepath.Join(home, ".claude-work", "settings.json"),
+		"gemini " + filepath.Join(home, ".gemini", "settings.json"),
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("targets:\n%s", strings.Join(got, "\n"))
+	}
 }
 
 func TestInstallEndToEnd(t *testing.T) {
 	home := t.TempDir()
 	p := paths.For(home, "")
+	if err := os.MkdirAll(p.Conf, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cfg := `
+[[profile]]
+name = "personal"
+command = "claude"
+[[profile]]
+name = "work"
+command = "claude"
+env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
+[[profile]]
+name = "opencode"
+command = "opencode"
+`
+	if err := os.WriteFile(p.Config(), []byte(cfg), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	claude := filepath.Join(home, ".claude")
 	work := filepath.Join(home, ".claude-work")
 	for _, d := range []string{claude, work} {
@@ -101,7 +160,7 @@ func TestInstallEndToEnd(t *testing.T) {
 	if err := os.WriteFile(settings, []byte(existing), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	// A conta da empresa aponta para o mesmo arquivo (link).
+	// The work account points at the same file (a symlink).
 	if err := os.Symlink(settings, filepath.Join(work, "settings.json")); err != nil {
 		t.Fatal(err)
 	}
@@ -111,26 +170,25 @@ func TestInstallEndToEnd(t *testing.T) {
 	}
 	fi, err := os.Lstat(filepath.Join(work, "settings.json"))
 	if err != nil || fi.Mode()&os.ModeSymlink == 0 {
-		t.Fatal("o link do settings.json da outra conta deve continuar link")
+		t.Fatal("the other account's settings.json symlink must stay a symlink")
 	}
 	if fi, _ := os.Stat(settings); fi.Mode().Perm() != 0o600 {
-		t.Errorf("permissão mantida: %v", fi.Mode().Perm())
+		t.Errorf("permission kept: %v", fi.Mode().Perm())
 	}
 	data, _ := os.ReadFile(settings)
 	if strings.Count(string(data), p.Hook()+" stop") != 1 {
-		t.Fatalf("o arquivo compartilhado recebe o hook uma vez só:\n%s", data)
+		t.Fatalf("the shared file gets the hook once:\n%s", data)
 	}
-	baks, _ := filepath.Glob(settings + ".argus-bak-*")
-	if len(baks) != 1 {
-		t.Errorf("backup ao lado: %v", baks)
+	if baks, _ := filepath.Glob(settings + ".argus-bak-*"); len(baks) != 1 {
+		t.Errorf("backup next to it: %v", baks)
 	}
 	plugin, err := os.ReadFile(filepath.Join(p.OpencodePlugins(), PluginFile))
 	if err != nil || !strings.Contains(string(plugin), p.Opencode()) || strings.Contains(string(plugin), "__OPENCODE_DIR__") {
-		t.Fatalf("plugin do opencode com a pasta certa: %v", err)
+		t.Fatalf("opencode plugin with the right folder: %v", err)
 	}
 	conf, _ := os.ReadFile(p.TmuxConf())
-	if strings.Contains(string(conf), "__STATE_DIR__") || !strings.Contains(string(conf), p.State) {
-		t.Fatal("tmux.conf com a pasta de estado")
+	if strings.Contains(string(conf), "__") || !strings.Contains(string(conf), p.State) {
+		t.Fatal("tmux.conf with every placeholder filled")
 	}
 
 	log.Reset()
@@ -139,26 +197,23 @@ func TestInstallEndToEnd(t *testing.T) {
 	}
 	data, _ = os.ReadFile(settings)
 	if strings.Contains(string(data), p.Hook()) {
-		t.Fatalf("uninstall tira os hooks:\n%s", data)
+		t.Fatalf("uninstall removes the hooks:\n%s", data)
 	}
 	if _, err := os.Stat(filepath.Join(p.OpencodePlugins(), PluginFile)); err == nil {
-		t.Fatal("uninstall tira o plugin")
+		t.Fatal("uninstall removes the plugin")
 	}
 	for _, d := range []string{p.State, p.Share, p.Conf} {
 		if _, err := os.Stat(d); err == nil {
-			t.Errorf("uninstall apaga %s", d)
+			t.Errorf("uninstall deletes %s", d)
 		}
 	}
 }
 
-// O hook é shell puro; aqui ele roda de verdade.
+// The hook is plain shell; here it really runs.
 func TestHookScript(t *testing.T) {
-	if _, err := os.Stat("/bin/dash"); err != nil {
-		t.Skip("sem /bin/dash")
-	}
 	state := t.TempDir()
 	script := filepath.Join(t.TempDir(), "hook.sh")
-	if err := os.WriteFile(script, []byte(HookScript(state)), 0o755); err != nil {
+	if err := os.WriteFile(script, []byte(HookScript(state, Shell())), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	run := func(id, arg string) string {
@@ -166,39 +221,38 @@ func TestHookScript(t *testing.T) {
 		cmd.Env = []string{"ARGUS_ID=" + id}
 		out, err := cmd.CombinedOutput()
 		if err != nil || len(out) > 0 {
-			t.Fatalf("hook %s: err=%v saída=%q (não pode escrever nada)", arg, err, out)
+			t.Fatalf("hook %s: err=%v output=%q (it must print nothing)", arg, err, out)
 		}
 		b, _ := os.ReadFile(filepath.Join(state, id))
 		return strings.TrimSpace(string(b))
 	}
 	steps := []struct{ arg, want string }{
 		{"start", "idle"},
-		{"notify", "idle"}, // aviso sem estar trabalhando não muda nada
+		{"notify", "idle"}, // a notification while not working changes nothing
 		{"prompt", "working"},
 		{"tool", "working"},
 		{"notify", "waiting"},
-		{"tool", "working"}, // permissão respondida
+		{"tool", "working"}, // permission answered
 		{"perm", "waiting"},
 		{"stop", "done"},
-		{"desconhecido", "done"},
+		{"unknown", "done"},
 		{"end", "ended"},
 	}
 	for _, s := range steps {
 		if got := run("abc123", s.arg); got != s.want {
-			t.Fatalf("depois de %s: %q, quer %q", s.arg, got, s.want)
+			t.Fatalf("after %s: %q, want %q", s.arg, got, s.want)
 		}
 	}
-	// Fora do Argus (sem ARGUS_ID) ou com id estranho, não faz nada.
+	// Outside Argus (no ARGUS_ID) or with an odd id, it does nothing.
 	cmd := exec.Command(script, "prompt")
 	cmd.Env = []string{}
 	if err := cmd.Run(); err != nil {
 		t.Fatal(err)
 	}
 	if got := run("../x", "prompt"); got != "" {
-		t.Fatalf("id inválido não pode escrever fora da pasta: %q", got)
+		t.Fatalf("an invalid id cannot write outside the folder: %q", got)
 	}
-	entries, _ := os.ReadDir(state)
-	if len(entries) != 1 {
-		t.Fatalf("só o arquivo da sessão: %v", entries)
+	if entries, _ := os.ReadDir(state); len(entries) != 1 {
+		t.Fatalf("only the session's file: %v", entries)
 	}
 }

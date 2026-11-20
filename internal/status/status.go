@@ -1,5 +1,5 @@
-// Package status lê e grava o estado de cada sessão: uma palavra num arquivo
-// (gravado pelo hook do Claude Code, pelo plugin do opencode ou pelo painel).
+// Package status reads and writes each session's state: one word in a file,
+// written by the agent hooks, the opencode plugin or the panel.
 package status
 
 import (
@@ -11,14 +11,14 @@ import (
 )
 
 const (
-	Idle    = "idle"    // aberta, sem nada pedido
-	Working = "working" // o agente está agindo
-	Waiting = "waiting" // pediu permissão ou fez uma pergunta
-	Done    = "done"    // respondeu e parou
-	Ended   = "ended"   // o processo terminou
+	Idle    = "idle"    // open, nothing asked yet
+	Working = "working" // the agent is acting
+	Waiting = "waiting" // asked for permission or a question
+	Done    = "done"    // answered and stopped
+	Ended   = "ended"   // the process exited
 )
 
-// Read devolve o estado gravado e quando ele mudou. Sem arquivo: Idle.
+// Read returns the stored state and when it changed. No file means Idle.
 func Read(path string) (string, time.Time) {
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -35,13 +35,13 @@ func Read(path string) (string, time.Time) {
 	return s, fi.ModTime()
 }
 
-// Write grava um estado.
+// Write stores a state.
 func Write(path, s string) error {
 	return os.WriteFile(path, []byte(s+"\n"), 0o644)
 }
 
-// Opencode é o estado de uma conversa do opencode, gravado pelo plugin do Argus
-// como "estado\npasta\n" num arquivo com o id da conversa.
+// Opencode is the state of one opencode conversation, written by the Argus
+// plugin as "state\nfolder\n" in a file named after the conversation id.
 type Opencode struct {
 	Session string
 	Status  string
@@ -49,7 +49,7 @@ type Opencode struct {
 	Changed time.Time
 }
 
-// ReadOpencode lê todos os estados gravados pelo plugin.
+// ReadOpencode reads every state written by the plugin.
 func ReadOpencode(dir string) map[string]Opencode {
 	out := map[string]Opencode{}
 	entries, err := os.ReadDir(dir)
@@ -67,7 +67,7 @@ func ReadOpencode(dir string) map[string]Opencode {
 	return out
 }
 
-// ReadOpencodeFile lê um arquivo de estado do plugin do opencode.
+// ReadOpencodeFile reads one state file written by the opencode plugin.
 func ReadOpencodeFile(path string) (Opencode, bool) {
 	fi, err := os.Stat(path)
 	if err != nil {
@@ -84,7 +84,7 @@ func ReadOpencodeFile(path string) (Opencode, bool) {
 	return Opencode{Session: filepath.Base(path), Status: lines[0], Dir: lines[1], Changed: fi.ModTime()}, true
 }
 
-// Short formata uma duração em uma unidade: 12s, 3m, 2h, 5d.
+// Short formats a duration in one unit: 12s, 3m, 2h, 5d.
 func Short(d time.Duration) string {
 	if d < 0 {
 		d = 0

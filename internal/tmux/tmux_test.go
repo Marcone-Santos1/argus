@@ -11,47 +11,47 @@ import (
 func TestParsePanes(t *testing.T) {
 	line := strings.Join([]string{"%3", "main", "1", "0", "4242", "agent", "ab12cd", "claude-work",
 		"/p/api", "api", "1795000000000000000", "ses_x", "/p/repo"}, "\t")
-	ps := ParsePanes(line + "\nlinha quebrada\n")
+	ps := ParsePanes(line + "\nbroken line\n")
 	if len(ps) != 1 {
-		t.Fatalf("esperava 1 painel: %+v", ps)
+		t.Fatalf("expected 1 pane: %+v", ps)
 	}
 	p := ps[0]
 	if p.ID != "%3" || !p.InMain() || p.Index != 1 || p.Dead || p.PID != 4242 || p.Role != RoleAgent ||
 		p.AgentID != "ab12cd" || p.Profile != "claude-work" || p.Dir != "/p/api" || p.Name != "api" ||
 		p.Created != 1795000000000000000 || p.Session != "ses_x" || p.Worktree != "/p/repo" {
-		t.Fatalf("campos: %+v", p)
+		t.Fatalf("fields: %+v", p)
 	}
 }
 
-// Teste de integração com um servidor tmux de verdade, num socket próprio.
+// Integration test against a real tmux server on its own socket.
 func TestServer(t *testing.T) {
 	if _, err := exec.LookPath(New("x").Bin); err != nil {
-		t.Skip("tmux não instalado")
+		t.Skip("tmux not installed")
 	}
 	c := New(fmt.Sprintf("argus-test-%d", os.Getpid()))
 	t.Cleanup(func() { _, _ = c.Run("kill-server") })
 
 	if c.HasSession() {
-		t.Fatal("servidor novo não deveria ter sessão")
+		t.Fatal("a new server has no session")
 	}
 	if _, err := c.Run("-f", "/dev/null", "new-session", "-d", "-s", Session, "-n", MainWindow, "sleep", "30"); err != nil {
 		t.Fatal(err)
 	}
 	if !c.HasSession() {
-		t.Fatal("sessão deveria existir")
+		t.Fatal("the session should exist")
 	}
 	ps, err := c.ListPanes()
 	if err != nil || len(ps) != 1 {
-		t.Fatalf("painéis: %v %+v", err, ps)
+		t.Fatalf("panes: %v %+v", err, ps)
 	}
-	if err := c.SetPaneOptions(ps[0].ID, "@argus_role", RoleAgent, "@argus_name", "nome com espaço"); err != nil {
+	if err := c.SetPaneOptions(ps[0].ID, "@argus_role", RoleAgent, "@argus_name", "name with space"); err != nil {
 		t.Fatal(err)
 	}
 	ps, _ = c.ListPanes()
-	if ps[0].Role != RoleAgent || ps[0].Name != "nome com espaço" || !ps[0].InMain() {
-		t.Fatalf("opções gravadas: %+v", ps[0])
+	if ps[0].Role != RoleAgent || ps[0].Name != "name with space" || !ps[0].InMain() {
+		t.Fatalf("stored options: %+v", ps[0])
 	}
-	if _, err := c.Run("comando-que-nao-existe"); err == nil {
-		t.Fatal("comando inválido deveria dar erro")
+	if _, err := c.Run("no-such-command"); err == nil {
+		t.Fatal("an invalid command must fail")
 	}
 }

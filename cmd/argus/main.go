@@ -1,5 +1,5 @@
-// Comando argus: painel de terminal para rodar várias sessões de agentes
-// (Claude Code, opencode) em paralelo, sobre um servidor tmux próprio.
+// Command argus is a terminal panel for running many coding-agent sessions
+// (Claude Code, opencode, Gemini CLI, Codex) side by side, on its own tmux server.
 package main
 
 import (
@@ -14,6 +14,7 @@ import (
 
 	"github.com/Marcone-Santos1/argus/internal/bench"
 	"github.com/Marcone-Santos1/argus/internal/config"
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/install"
 	"github.com/Marcone-Santos1/argus/internal/notify"
 	"github.com/Marcone-Santos1/argus/internal/paths"
@@ -23,15 +24,6 @@ import (
 )
 
 var started = time.Now()
-
-const usage = `argus: painel para várias sessões de Claude Code e opencode
-
-uso:
-  argus              abre o painel (cria o servidor tmux se preciso)
-  argus install      instala hooks, plugin do opencode, config do tmux e config padrão
-  argus uninstall    remove tudo o que o install colocou
-  argus bench [-s N] mede o desempenho (N segundos por medição de CPU, padrão 60)
-`
 
 func main() {
 	socket := os.Getenv("ARGUS_SOCKET")
@@ -52,23 +44,23 @@ func main() {
 			err = install.Install(p, os.Stdout)
 			if err == nil && t.HasSession() {
 				if _, e := t.Run("source-file", p.TmuxConf()); e == nil {
-					fmt.Println("tmux:            config recarregada no servidor em uso")
+					fmt.Println(i18n.T("cli.tmuxReloaded"))
 				}
 			}
 		case "uninstall":
 			err = install.Uninstall(p, os.Stdout)
 			if err == nil && t.HasSession() {
-				fmt.Println("o servidor do Argus continua com suas sessões; feche com `tmux -L argus kill-server`")
+				fmt.Println(i18n.T("cli.serverKept"))
 			}
 		case "bench":
 			fs := flag.NewFlagSet("bench", flag.ExitOnError)
-			secs := fs.Int("s", 60, "segundos por medição de CPU")
+			secs := fs.Int("s", 60, "seconds per CPU measurement")
 			_ = fs.Parse(os.Args[2:])
 			err = bench.Run(p, t, *secs, os.Stdout)
 		case "-h", "--help", "help":
-			fmt.Print(usage)
+			fmt.Print(i18n.T("cli.usage"))
 		default:
-			fmt.Fprint(os.Stderr, usage)
+			fmt.Fprint(os.Stderr, i18n.T("cli.usage"))
 			os.Exit(2)
 		}
 	}
@@ -100,14 +92,14 @@ func selfPath() string {
 	return exe
 }
 
-// launch garante o servidor e o painel vivos e troca este processo pelo cliente
-// tmux: fora do tmux não sobra nenhum processo do Argus.
+// launch makes sure the server and the panel are alive and replaces this
+// process with the tmux client: no Argus process is left outside tmux.
 func launch(p paths.Paths, t *tmux.Client) error {
 	if _, err := os.Stat(p.TmuxConf()); err != nil {
-		return errors.New("rode `argus install` primeiro")
+		return errors.New(i18n.T("cli.needInstall"))
 	}
 	if strings.Contains(os.Getenv("TMUX"), "/"+t.Socket+",") {
-		return errors.New("você já está dentro do Argus (Ctrl+\\ volta para a lista)")
+		return errors.New(i18n.T("cli.insideArgus"))
 	}
 	if err := os.MkdirAll(p.State, 0o755); err != nil {
 		return err
@@ -126,7 +118,7 @@ func launch(p paths.Paths, t *tmux.Client) error {
 	} else if err := ensurePanel(t, self); err != nil {
 		return err
 	}
-	// A janela sempre acompanha o tamanho do terminal (um resize manual a deixaria presa).
+	// The window always follows the terminal size (a manual resize would pin it).
 	_, _ = t.Run("set", "-w", "-u", "-t", main, "window-size", ";",
 		"select-window", "-t", main, ";", "select-pane", "-t", main+".0")
 	return syscall.Exec(t.Bin, []string{"tmux", "-L", t.Socket, "attach-session", "-t", tmux.Session}, os.Environ())
@@ -150,14 +142,14 @@ func ensurePanel(t *tmux.Client, self string) error {
 		for _, p := range ps {
 			if p.InMain() && p.Index == 0 {
 				if !p.Dead && p.Role == "" {
-					return nil // painel subindo
+					return nil // the panel is starting
 				}
 				target = p.ID
 			}
 		}
 	}
 	if target == "" {
-		return errors.New("não achei o painel na sessão do tmux; rode `tmux -L argus kill-server` e abra de novo")
+		return errors.New(i18n.T("cli.noPanel"))
 	}
 	_, err = t.Run("respawn-pane", "-k", "-t", target, self, "panel")
 	return err

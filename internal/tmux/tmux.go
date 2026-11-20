@@ -1,4 +1,4 @@
-// Package tmux conversa com o servidor tmux do Argus.
+// Package tmux talks to the Argus tmux server.
 package tmux
 
 import (
@@ -10,26 +10,26 @@ import (
 	"strings"
 )
 
-// Nomes fixos dentro do servidor.
+// Fixed names inside the server.
 const (
 	Session    = "argus"
 	MainWindow = "main"
 )
 
-// Papéis de painel (opção @argus_role).
+// Pane roles (the @argus_role option).
 const (
 	RolePanel       = "panel"
 	RolePlaceholder = "placeholder"
 	RoleAgent       = "agent"
 )
 
-// Client roda comandos num servidor tmux (tmux -L Socket).
+// Client runs commands against one tmux server (tmux -L Socket).
 type Client struct {
 	Socket string
 	Bin    string
 }
 
-// New cria um cliente; o binário vem do PATH ou dos lugares comuns do Homebrew.
+// New creates a client; the binary comes from PATH or the usual Homebrew places.
 func New(socket string) *Client {
 	return &Client{Socket: socket, Bin: findBin()}
 }
@@ -38,7 +38,7 @@ func findBin() string {
 	if p, err := exec.LookPath("tmux"); err == nil {
 		return p
 	}
-	for _, c := range []string{"/opt/homebrew/bin/tmux", "/usr/local/bin/tmux"} {
+	for _, c := range []string{"/opt/homebrew/bin/tmux", "/usr/local/bin/tmux", "/usr/bin/tmux"} {
 		if _, err := os.Stat(c); err == nil {
 			return c
 		}
@@ -46,8 +46,8 @@ func findBin() string {
 	return "tmux"
 }
 
-// Run roda um comando. Vários comandos podem ir numa chamada só, separados por
-// ";" como argumento próprio (um processo só).
+// Run runs a command. Several commands can share one call, separated by ";"
+// as its own argument (one process).
 func (c *Client) Run(args ...string) (string, error) {
 	cmd := exec.Command(c.Bin, append([]string{"-L", c.Socket}, args...)...)
 	var stderr bytes.Buffer
@@ -63,13 +63,13 @@ func (c *Client) Run(args ...string) (string, error) {
 	return strings.TrimRight(string(out), "\n"), nil
 }
 
-// HasSession diz se a sessão do Argus existe.
+// HasSession reports whether the Argus session exists.
 func (c *Client) HasSession() bool {
 	_, err := c.Run("has-session", "-t", Session)
 	return err == nil
 }
 
-// Pane é um painel do tmux com as opções que o Argus grava nele.
+// Pane is a tmux pane plus the options Argus stores in it.
 type Pane struct {
 	ID       string
 	Window   string
@@ -82,11 +82,11 @@ type Pane struct {
 	Dir      string
 	Name     string
 	Created  int64
-	Session  string // id da conversa retomada (claude/opencode), se houver
-	Worktree string // repositório de origem, se a sessão roda numa worktree
+	Session  string // id of the resumed (or detected) conversation, if any
+	Worktree string // source repository when the session runs in a worktree
 }
 
-// InMain diz se o painel está na janela principal (lista + sessão visível).
+// InMain reports whether the pane is in the main window (list + visible session).
 func (p Pane) InMain() bool { return p.Window == MainWindow }
 
 var paneFields = []string{
@@ -95,10 +95,10 @@ var paneFields = []string{
 	"#{@argus_created}", "#{@argus_session}", "#{@argus_worktree}",
 }
 
-// PaneFormat é o formato usado por ListPanes (campos separados por tab).
+// PaneFormat is the list-panes format used by ListPanes (tab separated).
 var PaneFormat = strings.Join(paneFields, "\t")
 
-// ListPanes lista os painéis da sessão do Argus.
+// ListPanes lists the panes of the Argus session.
 func (c *Client) ListPanes() ([]Pane, error) {
 	out, err := c.Run("list-panes", "-s", "-t", Session, "-F", PaneFormat)
 	if err != nil {
@@ -107,7 +107,7 @@ func (c *Client) ListPanes() ([]Pane, error) {
 	return ParsePanes(out), nil
 }
 
-// ParsePanes interpreta a saída de list-panes no formato PaneFormat.
+// ParsePanes interprets list-panes output in PaneFormat.
 func ParsePanes(out string) []Pane {
 	var ps []Pane
 	for _, line := range strings.Split(out, "\n") {
@@ -127,7 +127,7 @@ func ParsePanes(out string) []Pane {
 	return ps
 }
 
-// SetPaneOptions grava opções de painel num comando só.
+// SetPaneOptions stores pane options in a single command.
 func (c *Client) SetPaneOptions(pane string, kv ...string) error {
 	var args []string
 	for i := 0; i+1 < len(kv); i += 2 {

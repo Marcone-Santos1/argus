@@ -11,6 +11,7 @@ import (
 
 	"github.com/Marcone-Santos1/argus/internal/config"
 	"github.com/Marcone-Santos1/argus/internal/history"
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/status"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 	"github.com/Marcone-Santos1/argus/internal/worktree"
@@ -30,7 +31,7 @@ func (p *Panel) scheduleSwap() {
 	p.swapC = p.swapTimer.C
 }
 
-// current é a sessão aberta selecionada (nil numa conversa antiga).
+// current is the selected open session (nil on a past conversation).
 func (p *Panel) current() *agent {
 	if p.sel < 0 || p.sel >= len(p.items) || p.items[p.sel].agent < 0 {
 		return nil
@@ -38,7 +39,7 @@ func (p *Panel) current() *agent {
 	return &p.agents[p.items[p.sel].agent]
 }
 
-// showSelected põe a sessão selecionada no lado direito (troca de lugar com a atual).
+// showSelected puts the selected session on the right (swapping with the current one).
 func (p *Panel) showSelected() bool {
 	a := p.current()
 	if a == nil {
@@ -68,7 +69,7 @@ func (p *Panel) focusSession() {
 	}
 }
 
-// hideSession tira a sessão da direita sem encerrá-la (ela continua rodando).
+// hideSession takes the session off the right without closing it (it keeps running).
 func (p *Panel) hideSession() {
 	p.swapC = nil
 	for _, a := range p.agents {
@@ -93,21 +94,21 @@ func (p *Panel) killSelected() {
 			p.flash(err.Error())
 			return
 		}
-		p.flash("encerrada: " + target.Name)
+		p.flash(i18n.T("msg.closed", target.Name))
 		p.reconcile()
 		if target.Worktree != "" {
-			p.confirm(fmt.Sprintf("Apagar a worktree %s? (s/n)", filepath.Base(target.Dir)), func() {
+			p.confirm(i18n.T("msg.deleteWorktree", filepath.Base(target.Dir)), func() {
 				if err := worktree.Remove(target.Worktree, target.Dir); err != nil {
 					p.flash(err.Error())
 				} else {
-					p.flash("worktree apagada; o branch continua no repositório")
+					p.flash(i18n.T("msg.worktreeDeleted"))
 				}
 				p.refreshRecent()
 			})
 		}
 	}
 	if target.Status == status.Working || target.Status == status.Waiting {
-		p.confirm(fmt.Sprintf("%s está ativa. Encerrar? (s/n)", target.Name), do)
+		p.confirm(i18n.T("msg.active", target.Name), do)
 		return
 	}
 	do()
@@ -152,8 +153,8 @@ func (p *Panel) closePicker() {
 	p.setZoom(false)
 }
 
-// nextAttention seleciona a próxima sessão esperando você (ou, sem nenhuma,
-// a próxima que terminou), a partir da seleção atual.
+// nextAttention selects the next session waiting for you (or, if none, the
+// next one that finished), starting from the current selection.
 func (p *Panel) nextAttention() {
 	for _, want := range []string{status.Waiting, status.Done} {
 		n := len(p.items)
@@ -167,14 +168,14 @@ func (p *Panel) nextAttention() {
 			}
 		}
 	}
-	p.flash("nenhuma sessão esperando você")
+	p.flash(i18n.T("msg.noAttention"))
 }
 
-// startWorktree pergunta o branch e cria uma sessão numa worktree nova do
-// repositório da pasta selecionada.
+// startWorktree asks for a branch and starts a session in a new worktree of
+// the selected folder's repository.
 func (p *Panel) startWorktree() {
 	if p.sel < 0 || p.sel >= len(p.items) {
-		p.flash("selecione uma pasta com repositório git")
+		p.flash(i18n.T("msg.pickRepo"))
 		return
 	}
 	repo, err := worktree.RepoRoot(p.items[p.sel].dir)
@@ -182,7 +183,7 @@ func (p *Panel) startWorktree() {
 		p.flash(err.Error())
 		return
 	}
-	p.ask(fmt.Sprintf("Branch da worktree em %s:", filepath.Base(repo)), "argus-"+newID(), func(branch string) {
+	p.ask(i18n.T("msg.branchPrompt", filepath.Base(repo)), "argus-"+newID(), func(branch string) {
 		branch = strings.TrimSpace(branch)
 		path, err := worktree.Create(repo, branch)
 		if err != nil {
@@ -203,7 +204,7 @@ func (p *Panel) renameSelected() {
 		return
 	}
 	pane := a.Pane
-	p.ask("Novo nome da sessão:", a.Name, func(name string) {
+	p.ask(i18n.T("msg.renamePrompt"), a.Name, func(name string) {
 		name = strings.TrimSpace(name)
 		if name == "" {
 			return
@@ -226,19 +227,19 @@ func (p *Panel) askProfile(choices []config.Profile, def string) {
 	p.mode = modePickProfile
 }
 
-// startAgent cria a sessão respeitando o limite de sessões simultâneas.
+// startAgent creates the session, honoring the limit of simultaneous sessions.
 func (p *Panel) startAgent(dir string, prof config.Profile, resume *history.Entry) {
 	wt := p.worktreeOf
 	if len(p.agents) >= p.d.Config.MaxSessions {
 		p.closePicker()
-		p.confirm(fmt.Sprintf("Já são %d sessões (limite %d). Abrir mais uma? (s/n)", len(p.agents), p.d.Config.MaxSessions),
+		p.confirm(i18n.T("msg.limit", len(p.agents), p.d.Config.MaxSessions),
 			func() { p.createAgent(dir, prof, resume, wt) })
 		return
 	}
 	p.createAgent(dir, prof, resume, wt)
 }
 
-// shellQuote protege um argumento para a linha de comando do shell.
+// shellQuote protects an argument for a shell command line.
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
 
 func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Entry, wtRepo string) {
@@ -248,7 +249,7 @@ func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Ent
 	session := ""
 	if resume != nil {
 		if !history.SafeID(resume.ID) {
-			p.flash("id de conversa inválido")
+			p.flash(i18n.T("msg.badID"))
 			return
 		}
 		for _, a := range history.ResumeArgs(resume.Tool, resume.ID) {
@@ -299,7 +300,7 @@ func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Ent
 	p.focusSession()
 }
 
-// resumeEntry retoma uma conversa; pergunta a conta só quando ela não está registrada.
+// resumeEntry resumes a conversation; it asks for the account only when none is recorded.
 func (p *Panel) resumeEntry(e history.Entry) {
 	p.backMode = p.mode
 	p.resume = &e
@@ -311,13 +312,13 @@ func (p *Panel) resumeEntry(e history.Entry) {
 	}
 	choices := p.d.Config.ProfilesFor(e.Tool)
 	if len(choices) == 0 {
-		p.flash("nenhum perfil configurado para " + e.Tool)
+		p.flash(i18n.T("msg.noProfile", e.Tool))
 		return
 	}
 	p.askProfile(choices, choices[0].Name)
 }
 
-// ---------- histórico ----------
+// ---------- history ----------
 
 func (p *Panel) openHistory() {
 	p.mode = modeHistory
@@ -333,7 +334,7 @@ func (p *Panel) openHistory() {
 	p.rebuildItems(p.selKey())
 }
 
-// refreshRecent relê o histórico fora do laço principal (o índice deixa isso em ~10 ms).
+// refreshRecent re-reads the history off the main loop (the index keeps it near 10 ms).
 func (p *Panel) refreshRecent() {
 	if p.recentLoading {
 		return

@@ -1,5 +1,5 @@
-// Package worktree cria e remove worktrees do git para sessões paralelas no
-// mesmo repositório.
+// Package worktree creates and removes git worktrees, so parallel sessions in
+// the same repository do not step on each other.
 package worktree
 
 import (
@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 )
 
 func git(dir string, args ...string) (string, error) {
@@ -23,12 +25,12 @@ func git(dir string, args ...string) (string, error) {
 	return strings.TrimSpace(string(out)), nil
 }
 
-// RepoRoot devolve a raiz do repositório principal que contém dir (mesmo se
-// dir já for uma worktree).
+// RepoRoot returns the root of the main repository containing dir (even when
+// dir is already a worktree).
 func RepoRoot(dir string) (string, error) {
 	common, err := git(dir, "rev-parse", "--path-format=absolute", "--git-common-dir")
 	if err != nil {
-		return "", errors.New("a pasta não é um repositório git")
+		return "", errors.New(i18n.T("wt.notRepo"))
 	}
 	if filepath.Base(common) == ".git" {
 		return filepath.Dir(common), nil
@@ -38,14 +40,14 @@ func RepoRoot(dir string) (string, error) {
 
 var unsafeChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
-// Path é onde a worktree de um branch fica: ao lado do repositório, em
-// <repo>.worktrees/<branch>, para não aparecer dentro do próprio projeto.
+// Path is where a branch's worktree lives: next to the repository, in
+// <repo>.worktrees/<branch>, so it never shows up inside the project.
 func Path(repo, branch string) string {
 	name := strings.Trim(unsafeChars.ReplaceAllString(branch, "-"), "-.")
 	return filepath.Join(filepath.Dir(repo), filepath.Base(repo)+".worktrees", name)
 }
 
-// ValidBranch confere o nome com o próprio git.
+// ValidBranch checks the name with git itself.
 func ValidBranch(repo, branch string) bool {
 	if strings.TrimSpace(branch) == "" || strings.HasPrefix(branch, "-") {
 		return false
@@ -54,10 +56,10 @@ func ValidBranch(repo, branch string) bool {
 	return err == nil
 }
 
-// Create cria a worktree; o branch é criado a partir do HEAD se ainda não existir.
+// Create creates the worktree; the branch is created from HEAD when it does not exist.
 func Create(repo, branch string) (string, error) {
 	if !ValidBranch(repo, branch) {
-		return "", fmt.Errorf("nome de branch inválido: %q", branch)
+		return "", errors.New(i18n.T("wt.badBranch", branch))
 	}
 	path := Path(repo, branch)
 	if _, err := git(repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+branch); err == nil {
@@ -68,7 +70,7 @@ func Create(repo, branch string) (string, error) {
 	return path, err
 }
 
-// Dirty diz se a worktree tem mudanças sem commit (inclusive arquivos novos).
+// Dirty reports whether the worktree has uncommitted changes (new files included).
 func Dirty(path string) (bool, error) {
 	out, err := git(path, "status", "--porcelain")
 	if err != nil {
@@ -77,14 +79,14 @@ func Dirty(path string) (bool, error) {
 	return out != "", nil
 }
 
-// Remove apaga uma worktree limpa. O branch continua existindo.
+// Remove deletes a clean worktree. The branch stays.
 func Remove(repo, path string) error {
 	dirty, err := Dirty(path)
 	if err != nil {
 		return err
 	}
 	if dirty {
-		return errors.New("a worktree tem mudanças sem commit; ela foi mantida")
+		return errors.New(i18n.T("wt.dirty"))
 	}
 	_, err = git(repo, "worktree", "remove", path)
 	return err

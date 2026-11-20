@@ -23,7 +23,7 @@ static int cpu_ticks(unsigned long long *busy, unsigned long long *total) {
 */
 import "C"
 
-// cpuTicks lê os contadores de CPU da máquina inteira (sem criar processo).
+// cpuTicks reads the whole machine's CPU counters (no process started).
 func cpuTicks() (busy, total uint64, ok bool) {
 	var b, t C.ulonglong
 	if C.cpu_ticks(&b, &t) != 0 {
@@ -31,3 +31,6 @@ func cpuTicks() (busy, total uint64, ok bool) {
 	}
 	return uint64(b), uint64(t), true
 }
+
+// nextPID is not exposed on macOS; the monitor falls back to a probe process.
+func nextPID() (int, bool) { return 0, false }

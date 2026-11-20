@@ -1,6 +1,6 @@
-// Package sysmon mede o uso de CPU da máquina e quantos processos estão sendo
-// criados por minuto, para o rodapé do painel e o alarme de tempestade de
-// processos (o que travou a máquina com outra ferramenta do tipo).
+// Package sysmon measures the machine's CPU use and how many processes are
+// being created per minute, for the panel footer and the process-storm alarm
+// (what once froze the machine with another tool of this kind).
 package sysmon
 
 import (
@@ -12,17 +12,17 @@ import (
 	"time"
 )
 
-// StormRate é a taxa (processos/min) que, sustentada por StormFor, dispara o alarme.
+// A rate of StormRate processes/min sustained for StormFor raises the alarm.
 const (
 	StormRate = 2000
 	StormFor  = 30 * time.Second
 )
 
-// Reading é uma leitura do monitor.
+// Reading is one monitor reading.
 type Reading struct {
-	CPU        float64 // % de toda a máquina, 0-100; <0 = sem dado
-	PerMinute  float64 // processos criados por minuto; <0 = sem dado
-	Storm      bool    // taxa acima de StormRate por StormFor
+	CPU        float64 // % of the whole machine, 0-100; <0 = no data
+	PerMinute  float64 // processes created per minute; <0 = no data
+	Storm      bool    // rate above StormRate for StormFor
 	StormSince time.Time
 }
 
@@ -31,20 +31,24 @@ type sample struct {
 	pid int
 }
 
-// Monitor acumula leituras. Cada Sample cria um processo /usr/bin/true para
-// descobrir o próximo PID (o macOS não expõe esse contador); o próprio teste
-// é descontado da taxa.
+// Monitor accumulates readings. On Linux it reads the kernel's last PID; on
+// macOS, which does not expose it, each Sample starts /usr/bin/true to learn
+// the next PID, and the probes themselves are subtracted from the rate.
 type Monitor struct {
 	busy, total uint64
 	samples     []sample
 	stormStart  time.Time
-	Probe       func() int // devolve um PID novo; trocável em testes
-	Now         func() time.Time
+	probes      bool             // whether Probe starts a process (counted out)
+	Probe       func() int       // returns a fresh PID; replaceable in tests
+	Now         func() time.Time // replaceable in tests
 }
 
-// New cria um monitor com a sonda padrão.
+// New creates a monitor with the best PID source for this OS.
 func New() *Monitor {
-	return &Monitor{Probe: probePID, Now: time.Now}
+	if _, ok := nextPID(); ok {
+		return &Monitor{Probe: func() int { n, _ := nextPID(); return n }, Now: time.Now}
+	}
+	return &Monitor{Probe: probePID, Now: time.Now, probes: true}
 }
 
 func probePID() int {
@@ -57,7 +61,7 @@ func probePID() int {
 	return pid
 }
 
-// Sample faz uma leitura. A primeira chamada só prepara a base.
+// Sample takes a reading. The first call only sets the baseline.
 func (m *Monitor) Sample() Reading {
 	r := Reading{CPU: -1, PerMinute: -1}
 	if b, t, ok := cpuTicks(); ok {
@@ -70,16 +74,19 @@ func (m *Monitor) Sample() Reading {
 	pid := m.Probe()
 	if pid > 0 {
 		m.samples = append(m.samples, sample{now, pid})
-		// Janela de 60 s.
+		// A 60 s window.
 		for len(m.samples) > 2 && now.Sub(m.samples[0].at) > time.Minute {
 			m.samples = m.samples[1:]
 		}
 		first := m.samples[0]
 		if span := now.Sub(first.at); span >= time.Second && pid > first.pid {
-			created := float64(pid-first.pid) - float64(len(m.samples)-1) // desconta as sondas
+			created := float64(pid - first.pid)
+			if m.probes {
+				created -= float64(len(m.samples) - 1)
+			}
 			r.PerMinute = max(0, created) / span.Minutes()
 		} else if pid < first.pid {
-			m.samples = m.samples[len(m.samples)-1:] // PIDs deram a volta
+			m.samples = m.samples[len(m.samples)-1:] // PIDs wrapped around
 		}
 	}
 	if r.PerMinute >= StormRate {
@@ -96,10 +103,10 @@ func (m *Monitor) Sample() Reading {
 	return r
 }
 
-// TopCommands lista os programas com mais processos vivos acima de sincePID
-// (os criados recentemente), mais frequentes primeiro. Roda `ps` uma vez.
+// TopCommands lists the programs with the most live processes above sincePID
+// (the recently created ones), most frequent first. Runs `ps` once.
 func TopCommands(sincePID, n int) []string {
-	out, err := exec.Command("/bin/ps", "-A", "-o", "pid=,comm=").Output()
+	out, err := exec.Command("ps", "-A", "-o", "pid=,comm=").Output()
 	if err != nil {
 		return nil
 	}
@@ -135,7 +142,7 @@ func topFromPS(out string, sincePID, n int) []string {
 	return names
 }
 
-// FirstPID é o PID mais antigo da janela atual (base para TopCommands).
+// FirstPID is the oldest PID in the current window (the base for TopCommands).
 func (m *Monitor) FirstPID() int {
 	if len(m.samples) == 0 {
 		return 0

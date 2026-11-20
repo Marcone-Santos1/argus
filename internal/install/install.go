@@ -1,6 +1,6 @@
-// Package install coloca e remove o que o Argus precisa fora do próprio
-// binário: o hook de status do Claude Code, o plugin do opencode e a
-// configuração do tmux.
+// Package install adds and removes what Argus needs outside its own binary:
+// the status hook for Claude Code, Codex and Gemini CLI, the opencode plugin
+// and the tmux configuration.
 package install
 
 import (
@@ -17,6 +17,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/Marcone-Santos1/argus/internal/config"
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/paths"
 )
 
@@ -29,86 +30,121 @@ var tmuxConf string
 //go:embed assets/argus-status.ts
 var opencodePlugin string
 
-// PluginFile é o nome do plugin dentro da pasta de plugins do opencode.
+// PluginFile is the plugin's name inside opencode's plugin directory.
 const PluginFile = "argus-status.ts"
 
-// ClaudeEvents liga cada evento do Claude Code ao argumento do hook.
-var ClaudeEvents = []struct{ Event, Arg string }{
-	{"SessionStart", "start"},
-	{"UserPromptSubmit", "prompt"},
-	{"PermissionRequest", "perm"},
-	{"Notification", "notify"},
-	{"PostToolUse", "tool"},
-	{"Stop", "stop"},
-	{"SessionEnd", "end"},
+// Event links an agent hook event to the argument the Argus hook receives.
+type Event struct{ Name, Arg string }
+
+// Hook events per agent. The hook script maps the argument to a state.
+var (
+	ClaudeEvents = []Event{
+		{"SessionStart", "start"}, {"UserPromptSubmit", "prompt"}, {"PermissionRequest", "perm"},
+		{"Notification", "notify"}, {"PostToolUse", "tool"}, {"Stop", "stop"}, {"SessionEnd", "end"},
+	}
+	CodexEvents = []Event{
+		{"SessionStart", "start"}, {"UserPromptSubmit", "prompt"}, {"PostToolUse", "tool"},
+		{"Stop", "stop"}, {"SessionEnd", "end"},
+	}
+	GeminiEvents = []Event{
+		{"SessionStart", "start"}, {"BeforeAgent", "prompt"}, {"Notification", "notify"},
+		{"AfterTool", "tool"}, {"AfterAgent", "stop"}, {"SessionEnd", "end"},
+	}
+)
+
+// Target is a settings file that receives the hook.
+type Target struct {
+	Tool    string
+	File    string
+	Events  []Event
+	Matcher bool // whether entries carry "matcher": "" (Claude, Codex)
 }
 
-// HookScript é o hook pronto para um diretório de estado.
-func HookScript(stateDir string) string {
-	return strings.ReplaceAll(hookScript, "__STATE_DIR__", stateDir)
-}
-
-// TmuxConf é a configuração do tmux pronta para um diretório de estado.
-func TmuxConf(stateDir string) string {
-	return strings.ReplaceAll(tmuxConf, "__STATE_DIR__", stateDir)
-}
-
-// OpencodePlugin é o plugin pronto para uma pasta de estados do opencode.
-func OpencodePlugin(dir string) string {
-	return strings.ReplaceAll(opencodePlugin, "__OPENCODE_DIR__", dir)
-}
-
-// ClaudeSettingsFiles são os settings.json das contas do Claude configuradas.
-func ClaudeSettingsFiles(cfg *config.Config, home string) []string {
+// Targets lists the files to hook, from the configured profiles.
+func Targets(cfg *config.Config, p paths.Paths) []Target {
+	var ts []Target
 	seen := map[string]bool{}
-	var files []string
-	for _, p := range cfg.ProfilesFor("claude") {
-		f := filepath.Join(p.ClaudeConfigDir(home), "settings.json")
-		real := f
-		if r, err := filepath.EvalSymlinks(f); err == nil {
+	add := func(t Target) {
+		real := t.File
+		if r, err := filepath.EvalSymlinks(t.File); err == nil {
 			real = r
 		}
 		if !seen[real] {
 			seen[real] = true
-			files = append(files, f)
+			ts = append(ts, t)
 		}
 	}
-	return files
+	for _, pr := range cfg.ProfilesFor("claude") {
+		add(Target{"claude", filepath.Join(pr.ClaudeConfigDir(p.Home), "settings.json"), ClaudeEvents, true})
+	}
+	if len(cfg.ProfilesFor("codex")) > 0 {
+		add(Target{"codex", p.CodexHooks(), CodexEvents, true})
+	}
+	if len(cfg.ProfilesFor("gemini")) > 0 {
+		add(Target{"gemini", p.GeminiSettings(), GeminiEvents, false})
+	}
+	return ts
 }
 
-// Install escreve hook, plugin e config do tmux e liga o hook nos settings do Claude.
+// Shell is the interpreter for the hook: dash starts in about half the time
+// of bash, which is what /bin/sh is on macOS.
+func Shell() string {
+	if _, err := os.Stat("/bin/dash"); err == nil {
+		return "/bin/dash"
+	}
+	return "/bin/sh"
+}
+
+// HookScript is the hook ready for a state directory and interpreter.
+func HookScript(stateDir, shell string) string {
+	s := strings.ReplaceAll(hookScript, "__STATE_DIR__", stateDir)
+	return strings.Replace(s, "#!/bin/dash", "#!"+shell, 1)
+}
+
+// TmuxConf is the tmux configuration ready for a state directory.
+func TmuxConf(stateDir string) string {
+	s := strings.ReplaceAll(tmuxConf, "__STATE_DIR__", stateDir)
+	return strings.ReplaceAll(s, "__PLACEHOLDER__", strings.ReplaceAll(i18n.T("tmux.placeholder"), `"`, `'`))
+}
+
+// OpencodePlugin is the plugin ready for an opencode state directory.
+func OpencodePlugin(dir string) string {
+	return strings.ReplaceAll(opencodePlugin, "__OPENCODE_DIR__", dir)
+}
+
+// Install writes the hook, plugin and tmux config and hooks the agents up.
 func Install(p paths.Paths, out io.Writer) error {
 	for _, d := range []string{p.State, p.Share, p.Conf, p.Opencode()} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return err
 		}
 	}
-	if err := os.WriteFile(p.Hook(), []byte(HookScript(p.State)), 0o755); err != nil {
+	if err := os.WriteFile(p.Hook(), []byte(HookScript(p.State, Shell())), 0o755); err != nil {
 		return err
 	}
-	fmt.Fprintln(out, "hook:          ", p.Hook())
+	fmt.Fprintln(out, "hook:            ", p.Hook())
 	if err := os.WriteFile(p.TmuxConf(), []byte(TmuxConf(p.State)), 0o644); err != nil {
 		return err
 	}
-	fmt.Fprintln(out, "tmux.conf:     ", p.TmuxConf())
+	fmt.Fprintln(out, "tmux.conf:       ", p.TmuxConf())
 	if _, err := os.Stat(p.Config()); err != nil {
 		if err := os.WriteFile(p.Config(), []byte(config.DefaultTOML), 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, "config:        ", p.Config(), "(novo)")
+		fmt.Fprintln(out, "config:          ", p.Config(), i18n.T("install.new"))
 	} else {
-		fmt.Fprintln(out, "config:        ", p.Config(), "(mantido)")
+		fmt.Fprintln(out, "config:          ", p.Config(), i18n.T("install.kept"))
 	}
 	cfg, err := config.Load(p.Config(), p.Home)
 	if err != nil {
-		return fmt.Errorf("config.toml inválido: %w", err)
+		return fmt.Errorf("%s: %w", i18n.T("cli.badConfig"), err)
 	}
-	for _, f := range ClaudeSettingsFiles(cfg, p.Home) {
-		msg, err := addHooksFile(f, p.Hook())
+	for _, t := range Targets(cfg, p) {
+		msg, err := addHooksFile(t, p.Hook())
 		if err != nil {
 			return err
 		}
-		fmt.Fprintln(out, "hooks Claude:  ", f, msg)
+		fmt.Fprintf(out, "hooks %-11s %s %s\n", t.Tool+":", t.File, msg)
 	}
 	if len(cfg.ProfilesFor("opencode")) > 0 {
 		dir := p.OpencodePlugins()
@@ -119,72 +155,75 @@ func Install(p paths.Paths, out io.Writer) error {
 		if err := os.WriteFile(f, []byte(OpencodePlugin(p.Opencode())), 0o644); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, "plugin opencode:", f)
+		fmt.Fprintln(out, "plugin opencode: ", f)
 	}
 	return nil
 }
 
-// Uninstall desfaz o Install.
+// Uninstall undoes Install.
 func Uninstall(p paths.Paths, out io.Writer) error {
 	cfg, err := config.Load(p.Config(), p.Home)
 	if err != nil {
 		cfg, _ = config.Parse(config.DefaultTOML, p.Home)
 	}
-	for _, f := range ClaudeSettingsFiles(cfg, p.Home) {
-		data, err := os.ReadFile(f)
+	for _, t := range Targets(cfg, p) {
+		data, err := os.ReadFile(t.File)
 		if err != nil {
 			continue
 		}
-		js, n, err := RemoveHooks(data, p.Hook())
+		js, n, err := RemoveHooks(data, p.Hook(), t.Events)
 		if err != nil {
 			return err
 		}
 		if n > 0 {
-			if err := writeWithBackup(f, data, js); err != nil {
+			if err := writeWithBackup(t.File, data, js); err != nil {
 				return err
 			}
 		}
-		fmt.Fprintf(out, "hooks Claude:   %s (-%d)\n", f, n)
+		fmt.Fprintf(out, "hooks %-11s %s (-%d)\n", t.Tool+":", t.File, n)
 	}
 	plugin := filepath.Join(p.OpencodePlugins(), PluginFile)
 	if err := os.Remove(plugin); err == nil {
-		fmt.Fprintln(out, "removido:      ", plugin)
+		fmt.Fprintln(out, i18n.T("install.removed"), plugin)
 	}
 	for _, d := range []string{p.Share, p.Conf, p.State} {
 		if err := os.RemoveAll(d); err != nil {
 			return err
 		}
-		fmt.Fprintln(out, "removido:      ", d)
+		fmt.Fprintln(out, i18n.T("install.removed"), d)
 	}
 	return nil
 }
 
-func hookEntry(command string) string {
-	return fmt.Sprintf(`{"matcher":"","hooks":[{"type":"command","command":%q}]}`, command)
+func hookEntry(command string, matcher bool) string {
+	if matcher {
+		return fmt.Sprintf(`{"matcher":"","hooks":[{"type":"command","command":%q}]}`, command)
+	}
+	return fmt.Sprintf(`{"hooks":[{"type":"command","command":%q}]}`, command)
 }
 
-// AddHooks acrescenta o hook do Argus aos eventos do Claude Code, sem mexer nos
-// hooks que já existem. Devolve o JSON novo e quantos eventos ganharam o hook.
-func AddHooks(data []byte, hook string) ([]byte, int, error) {
+// AddHooks appends the Argus hook to each event, leaving existing hooks alone.
+// It returns the new JSON and how many events got the hook.
+func AddHooks(data []byte, hook string, events []Event, matcher bool) ([]byte, int, error) {
 	if len(strings.TrimSpace(string(data))) == 0 {
 		data = []byte("{}")
 	}
 	if !gjson.ValidBytes(data) {
-		return nil, 0, fmt.Errorf("settings.json não é JSON válido")
+		return nil, 0, fmt.Errorf("invalid JSON")
 	}
 	js := string(data)
 	added := 0
-	for _, e := range ClaudeEvents {
-		key := "hooks." + e.Event
+	for _, e := range events {
+		key := "hooks." + e.Name
 		cur := gjson.Get(js, key)
 		if strings.Contains(cur.Raw, hook) {
 			continue
 		}
 		var err error
 		if cur.IsArray() {
-			js, err = sjson.SetRaw(js, key+".-1", hookEntry(hook+" "+e.Arg))
+			js, err = sjson.SetRaw(js, key+".-1", hookEntry(hook+" "+e.Arg, matcher))
 		} else {
-			js, err = sjson.SetRaw(js, key, "["+hookEntry(hook+" "+e.Arg)+"]")
+			js, err = sjson.SetRaw(js, key, "["+hookEntry(hook+" "+e.Arg, matcher)+"]")
 		}
 		if err != nil {
 			return nil, 0, err
@@ -194,12 +233,12 @@ func AddHooks(data []byte, hook string) ([]byte, int, error) {
 	return []byte(js), added, nil
 }
 
-// RemoveHooks tira as entradas do Argus; eventos que ficam vazios somem.
-func RemoveHooks(data []byte, hook string) ([]byte, int, error) {
+// RemoveHooks removes the Argus entries; events left empty are removed.
+func RemoveHooks(data []byte, hook string, events []Event) ([]byte, int, error) {
 	js := string(data)
 	removed := 0
-	for _, e := range ClaudeEvents {
-		key := "hooks." + e.Event
+	for _, e := range events {
+		key := "hooks." + e.Name
 		arr := gjson.Get(js, key)
 		if !arr.IsArray() {
 			continue
@@ -219,29 +258,32 @@ func RemoveHooks(data []byte, hook string) ([]byte, int, error) {
 			js, _ = sjson.Delete(js, key)
 		}
 	}
+	if gjson.Get(js, "hooks").IsObject() && len(gjson.Get(js, "hooks").Map()) == 0 {
+		js, _ = sjson.Delete(js, "hooks")
+	}
 	return []byte(js), removed, nil
 }
 
-func addHooksFile(path, hook string) (string, error) {
-	data, err := os.ReadFile(path)
+func addHooksFile(t Target, hook string) (string, error) {
+	data, err := os.ReadFile(t.File)
 	if err != nil && !os.IsNotExist(err) {
 		return "", err
 	}
-	js, added, err := AddHooks(data, hook)
+	js, added, err := AddHooks(data, hook, t.Events, t.Matcher)
 	if err != nil {
-		return "", fmt.Errorf("%s: %w; nada foi alterado", path, err)
+		return "", fmt.Errorf("%s", i18n.T("install.badJSON", t.File))
 	}
 	if added == 0 {
-		return "(já instalados)", nil
+		return i18n.T("install.already"), nil
 	}
-	if err := writeWithBackup(path, data, js); err != nil {
+	if err := writeWithBackup(t.File, data, js); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("(+%d eventos; backup ao lado)", added), nil
+	return i18n.T("install.added", added), nil
 }
 
-// writeWithBackup grava no arquivo real (settings.json pode ser link), mantém a
-// permissão e deixa uma cópia do original ao lado.
+// writeWithBackup writes to the real file (settings.json may be a symlink),
+// keeps its permissions and leaves a copy of the original next to it.
 func writeWithBackup(path string, old, js []byte) error {
 	if real, err := filepath.EvalSymlinks(path); err == nil {
 		path = real

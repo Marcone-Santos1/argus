@@ -5,17 +5,17 @@ import "testing"
 func TestForSeparatesTestServers(t *testing.T) {
 	real := For("/h", "argus")
 	if real.State != "/h/.local/state/argus" {
-		t.Fatalf("estado do servidor real: %s", real.State)
+		t.Fatalf("real server state: %s", real.State)
 	}
 	if def := For("/h", ""); def.State != real.State {
-		t.Fatalf("socket vazio deveria ser o real: %s", def.State)
+		t.Fatalf("an empty socket means the real server: %s", def.State)
 	}
 	test := For("/h", "argustest")
 	if test.State == real.State {
-		t.Fatal("servidor de teste não pode dividir o estado com o real")
+		t.Fatal("a test server must not share state with the real one")
 	}
 	if test.Share != real.Share || test.Conf != real.Conf {
-		t.Fatal("hook e config são os mesmos para qualquer servidor")
+		t.Fatal("hook and config are the same for every server")
 	}
 }
 
@@ -25,11 +25,11 @@ func TestExpandAndPretty(t *testing.T) {
 		"~":            "/Users/ana",
 		"~/Projects":   "/Users/ana/Projects",
 		"/opt/x":       "/opt/x",
-		"relativo/~/a": "relativo/~/a",
+		"relative/~/a": "relative/~/a",
 	}
 	for in, want := range cases {
 		if got := p.Expand(in); got != want {
-			t.Errorf("Expand(%q) = %q, quer %q", in, got, want)
+			t.Errorf("Expand(%q) = %q, want %q", in, got, want)
 		}
 	}
 	pretty := map[string]string{
@@ -40,7 +40,7 @@ func TestExpandAndPretty(t *testing.T) {
 	}
 	for in, want := range pretty {
 		if got := p.Pretty(in); got != want {
-			t.Errorf("Pretty(%q) = %q, quer %q", in, got, want)
+			t.Errorf("Pretty(%q) = %q, want %q", in, got, want)
 		}
 	}
 }

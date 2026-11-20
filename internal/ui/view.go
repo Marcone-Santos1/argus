@@ -11,6 +11,7 @@ import (
 	"golang.org/x/term"
 
 	"github.com/Marcone-Santos1/argus/internal/history"
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/status"
 )
 
@@ -47,7 +48,7 @@ func (p *Panel) resize() {
 	p.w, p.h = w, h
 }
 
-// fit corta ou completa com espaços até w colunas.
+// fit cuts or pads with spaces to w columns.
 func fit(s string, w int) string {
 	if w <= 0 {
 		return ""
@@ -78,8 +79,8 @@ func (p *Panel) render() {
 		if i > 0 {
 			b.WriteString("\r\n")
 		}
-		// Limpa a linha antes de escrever: limpar depois apagaria a última
-		// coluna (sem quebra automática o cursor fica sobre ela).
+		// Clear the line before writing: clearing after would erase the last
+		// column (without autowrap the cursor stays on it).
 		b.WriteString("\x1b[2K")
 		if i < len(lines) {
 			b.WriteString(lines[i])
@@ -115,7 +116,7 @@ func (p *Panel) viewList() []string {
 		body = append(body, fit(" / "+p.listFilter+cursor, w))
 	}
 	if len(p.agents) == 0 && p.listFilter == "" {
-		body = append(body, dim+fit(" Nenhuma sessão aberta. n cria uma;", w)+reset, dim+fit(" Enter numa conversa a retoma.", w)+reset)
+		body = append(body, dim+fit(i18n.T("list.empty1"), w)+reset, dim+fit(i18n.T("list.empty2"), w)+reset)
 	}
 	focusLine := -1
 	now := time.Now()
@@ -138,7 +139,7 @@ func (p *Panel) viewList() []string {
 		}
 	}
 	if len(p.items) == 0 && p.listFilter != "" {
-		body = append(body, "", dim+fit(" nada encontrado", w)+reset)
+		body = append(body, "", dim+fit(i18n.T("list.nothing"), w)+reset)
 	}
 	return layout(body, p.footer(), p.h, max(focusLine, 0))
 }
@@ -155,19 +156,19 @@ func (p *Panel) footer() []string {
 		foot = append(foot, cyan+fit(" "+p.msg, w)+reset)
 	}
 	if p.reading.Storm {
-		foot = append(foot, red+fit(fmt.Sprintf(" ⚠ %.0f processos/min", p.reading.PerMinute), w)+reset)
+		foot = append(foot, red+fit(i18n.T("list.storm", p.reading.PerMinute), w)+reset)
 	}
 	foot = append(foot, dim+strings.Repeat("─", w)+reset)
-	sess := fmt.Sprintf("%d sessões", len(p.agents))
+	sess := i18n.T("list.sessions", len(p.agents))
 	if len(p.agents) == 1 {
-		sess = "1 sessão"
+		sess = i18n.T("list.session")
 	}
 	stats := ""
 	if p.reading.CPU >= 0 && p.reading.PerMinute >= 0 {
-		stats = fmt.Sprintf("CPU %.0f%%  proc/min %.0f  ", p.reading.CPU, p.reading.PerMinute)
+		stats = i18n.T("list.stats", p.reading.CPU, p.reading.PerMinute)
 	}
 	foot = append(foot, fit(" "+stats+sess, w))
-	hints := []string{"⏎ entrar", "^\\ alterna", "tab atenção", "n nova", "h histórico", "w worktree", "/ filtra", "r nome", "esc esconde", "x fecha", "z cheia", "q sai"}
+	hints := tr("hint.enter", "hint.toggle", "hint.tab", "hint.new", "hint.history", "hint.worktree", "hint.filter", "hint.rename", "hint.hide", "hint.close", "hint.zoom", "hint.quit")
 	return append(foot, wrapHints(hints, w)...)
 }
 
@@ -253,8 +254,8 @@ func wrapHints(hints []string, w int) []string {
 	return lines
 }
 
-// layout junta corpo e rodapé na altura da tela, rolando o corpo para manter
-// a linha focus visível.
+// layout fits body and footer to the screen height, scrolling the body so the
+// focus line stays visible.
 func layout(body, foot []string, h, focus int) []string {
 	room := max(h-len(foot), 1)
 	if len(body) > room {
@@ -271,11 +272,11 @@ func layout(body, foot []string, h, focus int) []string {
 func (p *Panel) viewPicker() []string {
 	w := p.w
 	body := []string{
-		bold + fit(" Nova sessão: escolha o projeto", w) + reset, "",
+		bold + fit(" "+i18n.T("pick.project"), w) + reset, "",
 		fit(" > "+p.filter+"█", w), "",
 	}
 	if len(p.filtered) == 0 {
-		body = append(body, dim+fit(" nada encontrado", w)+reset)
+		body = append(body, dim+fit(i18n.T("list.nothing"), w)+reset)
 	}
 	for i, pr := range p.filtered {
 		mark := "  "
@@ -289,18 +290,18 @@ func (p *Panel) viewPicker() []string {
 		body = append(body, line)
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
-	foot = append(foot, wrapHints([]string{"digite para filtrar", "↑↓ escolher", "⏎ ok", "esc cancela", "· usado antes"}, w)...)
+	foot = append(foot, wrapHints(tr("hint.type", "hint.pick", "hint.ok", "hint.cancel", "hint.used"), w)...)
 	return layout(body, foot, p.h, p.pickSel+4)
 }
 
 func (p *Panel) viewProfiles() []string {
 	w := p.w
-	title := "Nova sessão: escolha o perfil"
+	title := i18n.T("pick.profile")
 	switch {
 	case p.resume != nil:
-		title = "Retomar conversa: escolha a conta"
+		title = i18n.T("pick.resumeAccount")
 	case p.worktreeOf != "":
-		title = "Sessão na worktree: escolha o perfil"
+		title = i18n.T("pick.worktreeProfile")
 	}
 	body := []string{bold + fit(" "+title, w) + reset, dim + fit(" "+p.d.Paths.Pretty(p.chosenDir), w) + reset, ""}
 	for i, pr := range p.profChoices {
@@ -312,18 +313,18 @@ func (p *Panel) viewProfiles() []string {
 		}
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
-	foot = append(foot, wrapHints([]string{"↑↓ escolher", "⏎ abrir", "esc voltar"}, w)...)
+	foot = append(foot, wrapHints(tr("hint.pick", "hint.open", "hint.back"), w)...)
 	return layout(body, foot, p.h, p.profSel+3)
 }
 
 func (p *Panel) viewHistory() []string {
 	w := p.w
 	body := []string{
-		bold + fit(fmt.Sprintf(" Histórico: %d conversas", len(p.histAll)), w) + reset, "",
+		bold + fit(" "+i18n.T("history.title", len(p.histAll)), w) + reset, "",
 		fit(" > "+p.filter+"█", w), "",
 	}
 	if len(p.histShown) == 0 {
-		body = append(body, dim+fit(" nada encontrado", w)+reset)
+		body = append(body, dim+fit(i18n.T("list.nothing"), w)+reset)
 	}
 	now := time.Now()
 	projW := min(22, max(10, w/5))
@@ -342,6 +343,15 @@ func (p *Panel) viewHistory() []string {
 		body = append(body, line)
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
-	foot = append(foot, wrapHints([]string{"digite para filtrar (projeto, título, conta)", "↑↓ escolher", "⏎ retomar", "esc volta"}, w)...)
+	foot = append(foot, wrapHints(tr("hint.typeHistory", "hint.pick", "hint.resume", "hint.back"), w)...)
 	return layout(body, foot, p.h, p.histSel+4)
+}
+
+// tr translates a list of message keys.
+func tr(keys ...string) []string {
+	out := make([]string, len(keys))
+	for i, k := range keys {
+		out[i] = i18n.T(k)
+	}
+	return out
 }

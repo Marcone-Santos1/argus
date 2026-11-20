@@ -1,6 +1,6 @@
 #!/bin/dash
-# Argus: hook de status. Gerado por `argus install`; não editar.
-# Regras: só builtins do shell, nada em stdout, nunca falha o agente.
+# Argus status hook. Written by `argus install`; do not edit.
+# Rules: shell builtins only, nothing on stdout, never fails the agent.
 [ -n "$ARGUS_ID" ] || exit 0
 case "$ARGUS_ID" in *[!a-z0-9]*) exit 0 ;; esac
 f="__STATE_DIR__/$ARGUS_ID"

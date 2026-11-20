@@ -10,16 +10,16 @@ import (
 	"github.com/Marcone-Santos1/argus/internal/history"
 )
 
-// Quantas pastas só com conversas antigas, e quantas conversas por pasta, a lista mostra.
+// How many folders with only past conversations, and how many conversations per folder, the list shows.
 const (
 	recentFolders   = 8
 	recentPerFolder = 3
 )
 
-// item é uma linha selecionável: uma sessão aberta ou uma conversa antiga.
+// item is a selectable line: an open session or a past conversation.
 type item struct {
 	dir   string
-	agent int // índice em p.agents; -1 = conversa antiga
+	agent int // index in p.agents; -1 = past conversation
 	entry history.Entry
 }
 
@@ -46,10 +46,10 @@ func (p *Panel) selectKey(k string) bool {
 	return false
 }
 
-// rebuildItems monta a lista agrupada por pasta: primeiro as pastas com sessões
-// abertas (as sessões e, embaixo, as conversas antigas daquela pasta), depois as
-// pastas só com conversas antigas, na ordem do uso mais recente. Conversas que
-// já estão abertas numa sessão não se repetem. O filtro (/) vale para tudo.
+// rebuildItems builds the list grouped by folder: first the folders with open
+// sessions (the sessions, then that folder's past conversations), then the
+// folders with only past conversations, most recently used first. Conversations
+// already open in a session are not repeated. The filter (/) applies to all.
 func (p *Panel) rebuildItems(keep string) {
 	open := map[string]bool{}
 	var openDirs []string
@@ -108,7 +108,7 @@ func (p *Panel) rebuildItems(keep string) {
 	p.sel = clamp(p.sel, len(p.items))
 }
 
-// nthAgentItem: posição na lista da n-ésima sessão aberta (0 = primeira).
+// nthAgentItem is the list position of the n-th open session (0 = first).
 func (p *Panel) nthAgentItem(n int) int {
 	for i, it := range p.items {
 		if it.agent >= 0 {
@@ -121,7 +121,7 @@ func (p *Panel) nthAgentItem(n int) int {
 	return -1
 }
 
-// ---------- projetos (tecla n) ----------
+// ---------- projects (key n) ----------
 
 type project struct {
 	Path, Rel string

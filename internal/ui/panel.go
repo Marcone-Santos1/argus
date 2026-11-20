@@ -1,11 +1,12 @@
-// Package ui é o painel do Argus: a lista à esquerda, que troca a sessão
-// mostrada à direita. Ele não tem polling: acorda só com tecla, mudança de
-// arquivo no diretório de estado, SIGWINCH e um relógio de 2 s.
+// Package ui is the Argus panel: the list on the left, which switches the
+// session shown on the right. It never polls: it wakes only on a key, a file
+// change in the state directory, SIGWINCH and a 2 s clock.
 package ui
 
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -20,18 +21,19 @@ import (
 
 	"github.com/Marcone-Santos1/argus/internal/config"
 	"github.com/Marcone-Santos1/argus/internal/history"
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/paths"
 	"github.com/Marcone-Santos1/argus/internal/status"
 	"github.com/Marcone-Santos1/argus/internal/sysmon"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
 
-// Deps é o que o painel usa do resto do programa.
+// Deps is what the panel uses from the rest of the program.
 type Deps struct {
 	Paths   paths.Paths
 	Config  *config.Config
 	Tmux    *tmux.Client
-	Self    string // painel tmux onde o painel roda ($TMUX_PANE)
+	Self    string // tmux pane the panel runs in ($TMUX_PANE)
 	Notify  func(title, body string)
 	Monitor *sysmon.Monitor
 	Started time.Time
@@ -39,8 +41,8 @@ type Deps struct {
 
 type agent struct {
 	ID, Pane, Profile, Dir, Name string
-	Session                      string // conversa retomada ou detectada (opencode)
-	Worktree                     string // repositório de origem, se roda numa worktree
+	Session                      string // resumed or detected conversation (opencode)
+	Worktree                     string // source repository when running in a worktree
 	Created                      int64
 	Displayed                    bool
 	Status                       string
@@ -59,7 +61,7 @@ const (
 	modeInput
 )
 
-// Panel é o estado do painel.
+// Panel is the panel state.
 type Panel struct {
 	d     Deps
 	prefs *config.Prefs
@@ -87,7 +89,7 @@ type Panel struct {
 	histSel     int
 	resume      *history.Entry
 	profChoices []config.Profile
-	worktreeOf  string // repositório ao criar sessão numa worktree
+	worktreeOf  string // repository when creating a session in a worktree
 
 	inputPrompt string
 	input       string
@@ -97,7 +99,7 @@ type Panel struct {
 	recentLoading bool
 
 	oc        map[string]status.Opencode
-	lastState map[string]string // para avisar só em mudanças
+	lastState map[string]string // to notify only on changes
 
 	reading     sysmon.Reading
 	stormWarned bool
@@ -118,7 +120,7 @@ type Panel struct {
 	metrics  map[string]float64
 }
 
-// New monta um painel (sem tocar no terminal).
+// New builds a panel (without touching the terminal).
 func New(d Deps) *Panel {
 	if d.Started.IsZero() {
 		d.Started = time.Now()
@@ -151,10 +153,10 @@ func New(d Deps) *Panel {
 	}
 }
 
-// Run toma conta do terminal até o usuário sair.
+// Run takes over the terminal until the user quits.
 func (p *Panel) Run() error {
 	if p.d.Self == "" {
-		return fmt.Errorf("o painel roda dentro do tmux do Argus; use `argus`")
+		return errors.New(i18n.T("cli.panelOutside"))
 	}
 	for _, d := range []string{p.d.Paths.State, p.d.Paths.Opencode()} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
@@ -244,16 +246,16 @@ func (p *Panel) tick() {
 		top := sysmon.TopCommands(p.d.Monitor.FirstPID(), 1)
 		what := ""
 		if len(top) > 0 {
-			what = " Mais comum: " + top[0] + "."
+			what = i18n.T("msg.stormTop", top[0])
 		}
-		p.flash(fmt.Sprintf("Tempestade de processos: %.0f/min.%s", p.reading.PerMinute, what))
-		p.d.Notify("Argus: tempestade de processos", fmt.Sprintf("%.0f processos por minuto.%s", p.reading.PerMinute, what))
+		p.flash(i18n.T("msg.stormFlash", p.reading.PerMinute, what))
+		p.d.Notify(i18n.T("notify.stormTitle"), i18n.T("notify.stormBody", p.reading.PerMinute, what))
 	} else if !p.reading.Storm {
 		p.stormWarned = false
 	}
 }
 
-// ---------- estado ----------
+// ---------- state ----------
 
 func (p *Panel) reconcile() {
 	ps, err := p.d.Tmux.ListPanes()
@@ -288,7 +290,7 @@ func (p *Panel) reconcile() {
 		}
 	}
 
-	// À direita sempre há algo: a sessão escolhida ou o espaço vazio.
+	// The right side always shows something: the chosen session or the empty space.
 	if len(inMain) == 0 {
 		if len(placeholders) > 0 {
 			ph := placeholders[0]
@@ -308,7 +310,7 @@ func (p *Panel) reconcile() {
 			}
 		}
 	}
-	// Espaços vazios escondidos (trocados com uma sessão) não servem para nada.
+	// Hidden empty spaces (swapped with a session) are useless.
 	for _, extra := range placeholders {
 		_, _ = p.d.Tmux.Run("kill-pane", "-t", extra.ID)
 	}
@@ -321,7 +323,7 @@ func (p *Panel) reconcile() {
 	}
 	p.rebuildItems(key)
 
-	// Arquivos de estado de sessões que já não existem.
+	// State files of sessions that no longer exist.
 	if entries, err := os.ReadDir(p.d.Paths.State); err == nil {
 		for _, e := range entries {
 			n := e.Name()
@@ -340,7 +342,7 @@ func (p *Panel) isOpencode(a agent) bool {
 	return ok && pr.Label() == "opencode"
 }
 
-// refreshStatus relê o estado de uma sessão; avisa (se pedido) quando muda.
+// refreshStatus re-reads a session's state; notifies (when asked) on a change.
 func (p *Panel) refreshStatus(i int, notify bool) {
 	a := &p.agents[i]
 	st, since := status.Read(p.d.Paths.Status(a.ID))
@@ -354,7 +356,7 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	p.lastState[a.ID] = st
 	if notify && seen && prev != st && p.d.Config.ShouldNotify(st) && !p.focusedOn(*a) {
 		title := "Argus: " + a.Name
-		body := map[string]string{status.Waiting: "Esperando você.", status.Done: "Terminou."}[st]
+		body := map[string]string{status.Waiting: i18n.T("notify.waiting"), status.Done: i18n.T("notify.done")}[st]
 		if body == "" {
 			body = st
 		}
@@ -362,10 +364,10 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	}
 }
 
-// opencodeFor acha a conversa do opencode de uma sessão: pelo id, quando a
-// sessão foi retomada; senão, a conversa mais recente da mesma pasta iniciada
-// depois da sessão (e ainda não usada por outra). O id achado é gravado no
-// painel do tmux para a associação não mudar depois.
+// opencodeFor finds a session's opencode conversation: by id when the session
+// was resumed; otherwise the newest conversation in the same folder started
+// after the session (and not claimed by another one). The id found is stored
+// in the tmux pane so the association does not change later.
 func (p *Panel) opencodeFor(a *agent) (status.Opencode, bool) {
 	if a.Session != "" {
 		oc, ok := p.oc[a.Session]
@@ -395,7 +397,7 @@ func (p *Panel) opencodeFor(a *agent) (status.Opencode, bool) {
 	return best, found
 }
 
-// focusedOn diz se o usuário está olhando para a sessão agora.
+// focusedOn reports whether the user is looking at the session right now.
 func (p *Panel) focusedOn(a agent) bool {
 	if !a.Displayed {
 		return false

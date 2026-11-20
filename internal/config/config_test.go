@@ -12,24 +12,42 @@ func TestDefaultConfig(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got := c.Roots; !reflect.DeepEqual(got, []string{"/Users/ana/Projects", "/Users/ana/Sites"}) {
-		t.Errorf("roots com ~ expandido: %v", got)
+		t.Errorf("roots with ~ expanded: %v", got)
 	}
-	if len(c.Profiles) != 3 || c.Profiles[0].Name != "claude-pessoal" {
-		t.Fatalf("perfis: %+v", c.Profiles)
-	}
-	work, _ := c.Profile("claude-work")
-	if got := work.Env["CLAUDE_CONFIG_DIR"]; got != "/Users/ana/.claude-work" {
-		t.Errorf("env com ~ expandido: %q", got)
-	}
-	if got := work.ClaudeStateFile("/Users/ana"); got != "/Users/ana/.claude-work/.claude.json" {
-		t.Errorf("ClaudeStateFile do work: %q", got)
-	}
-	pes, _ := c.Profile("claude-pessoal")
-	if got := pes.ClaudeStateFile("/Users/ana"); got != "/Users/ana/.claude.json" {
-		t.Errorf("ClaudeStateFile padrão: %q", got)
+	if len(c.Profiles) != 2 || c.Profiles[0].Name != "claude" || c.Profiles[1].Label() != "opencode" {
+		t.Fatalf("profiles: %+v", c.Profiles)
 	}
 	if !c.ShouldNotify("waiting") || !c.ShouldNotify("done") || c.ShouldNotify("working") {
-		t.Errorf("avisos padrão: %v", c.Notify)
+		t.Errorf("default notifications: %v", c.Notify)
+	}
+}
+
+func TestClaudeDirs(t *testing.T) {
+	c, err := Parse(`
+[[profile]]
+name = "work"
+command = "claude"
+env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
+[[profile]]
+name = "personal"
+command = "claude"
+`, "/Users/ana")
+	if err != nil {
+		t.Fatal(err)
+	}
+	work, _ := c.Profile("work")
+	if got := work.Env["CLAUDE_CONFIG_DIR"]; got != "/Users/ana/.claude-work" {
+		t.Errorf("env with ~ expanded: %q", got)
+	}
+	if got := work.ClaudeStateFile("/Users/ana"); got != "/Users/ana/.claude-work/.claude.json" {
+		t.Errorf("work ClaudeStateFile: %q", got)
+	}
+	personal, _ := c.Profile("personal")
+	if got := personal.ClaudeStateFile("/Users/ana"); got != "/Users/ana/.claude.json" {
+		t.Errorf("default ClaudeStateFile: %q", got)
+	}
+	if got := personal.ClaudeConfigDir("/Users/ana"); got != "/Users/ana/.claude" {
+		t.Errorf("default ClaudeConfigDir: %q", got)
 	}
 }
 
@@ -39,16 +57,16 @@ func TestParseDefaults(t *testing.T) {
 		t.Fatal(err)
 	}
 	if c.ShouldNotify("waiting") {
-		t.Error("notify = [] deve desligar os avisos")
+		t.Error("notify = [] must turn notifications off")
 	}
 	if c.Depth != 2 || c.MaxSessions != 8 || len(c.Profiles) != 1 {
-		t.Errorf("padrões: %+v", c)
+		t.Errorf("defaults: %+v", c)
 	}
-	if c.Profiles[0].Group != "PESSOAL" {
-		t.Errorf("grupo do perfil padrão: %q", c.Profiles[0].Group)
+	if c.Profiles[0].Group != "PERSONAL" {
+		t.Errorf("default profile group: %q", c.Profiles[0].Group)
 	}
 	if _, err := Parse(`roots = [`, "/h"); err == nil {
-		t.Error("TOML inválido deveria dar erro")
+		t.Error("invalid TOML must fail")
 	}
 }
 
@@ -57,10 +75,12 @@ func TestLabelAndTag(t *testing.T) {
 		p          Profile
 		label, tag string
 	}{
-		{Profile{Name: "a", Command: "claude --x", Group: "PESSOAL"}, "claude", "pes"},
-		{Profile{Name: "b", Command: "/opt/bin/opencode", Group: "PESSOAL"}, "opencode", "oc"},
-		{Profile{Name: "c", Command: "claude", Group: "EMPRESA"}, "claude", "emp"},
+		{Profile{Name: "a", Command: "claude --x", Group: "PERSONAL"}, "claude", "per"},
+		{Profile{Name: "b", Command: "/opt/bin/opencode", Group: "PERSONAL"}, "opencode", "oc"},
+		{Profile{Name: "c", Command: "claude", Group: "WORK"}, "claude", "wor"},
 		{Profile{Name: "d", Command: "", Group: "UI"}, "d", "ui"},
+		{Profile{Name: "e", Command: "gemini", Group: "X"}, "gemini", "gem"},
+		{Profile{Name: "f", Command: "claude", Group: "EMPRESA", TagText: "job"}, "claude", "job"},
 	}
 	for _, tc := range cases {
 		if got := tc.p.Label(); got != tc.label {
@@ -73,24 +93,37 @@ func TestLabelAndTag(t *testing.T) {
 }
 
 func TestDefaultProfile(t *testing.T) {
-	c, err := Parse(DefaultTOML+"\n[[rule]]\nmatch = \"/work-\"\nprofile = \"claude-work\"\n", "/h")
+	c, err := Parse(`
+[[profile]]
+name = "personal"
+command = "claude"
+[[profile]]
+name = "work"
+command = "claude"
+[[profile]]
+name = "opencode"
+command = "opencode"
+[[rule]]
+match = "/work-"
+profile = "work"
+`, "/h")
 	if err != nil {
 		t.Fatal(err)
 	}
-	prefs := &Prefs{Dirs: map[string]DirPref{"/h/p/lembrado": {Profile: "opencode"}, "/h/p/sumiu": {Profile: "nao-existe"}}}
+	prefs := &Prefs{Dirs: map[string]DirPref{"/h/p/remembered": {Profile: "opencode"}, "/h/p/gone": {Profile: "deleted"}}}
 	cases := map[string]string{
-		"/h/p/work-api": "claude-work",    // regra
-		"/h/p/lembrado": "opencode",       // lembrado
-		"/h/p/sumiu":    "claude-pessoal", // lembrado, mas perfil apagado
-		"/h/p/qualquer": "claude-pessoal", // primeiro perfil
+		"/h/p/work-api":   "work",     // rule
+		"/h/p/remembered": "opencode", // remembered
+		"/h/p/gone":       "personal", // remembered, but the profile was removed
+		"/h/p/other":      "personal", // first profile
 	}
 	for dir, want := range cases {
 		if got := c.DefaultProfile(dir, prefs); got != want {
-			t.Errorf("DefaultProfile(%s) = %s, quer %s", dir, got, want)
+			t.Errorf("DefaultProfile(%s) = %s, want %s", dir, got, want)
 		}
 	}
-	if got := c.DefaultProfile("/x", nil); got != "claude-pessoal" {
-		t.Errorf("sem prefs: %s", got)
+	if got := c.DefaultProfile("/x", nil); got != "personal" {
+		t.Errorf("without prefs: %s", got)
 	}
 }
 
@@ -98,23 +131,23 @@ func TestPrefsRoundTrip(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "prefs.json")
 	p := LoadPrefs(path)
 	if len(p.Dirs) != 0 {
-		t.Fatal("arquivo ausente deveria dar prefs vazias")
+		t.Fatal("a missing file gives empty prefs")
 	}
 	p.Dirs["/a"] = DirPref{Profile: "x", Last: 42}
 	if err := p.Save(); err != nil {
 		t.Fatal(err)
 	}
 	if got := LoadPrefs(path).Dirs["/a"]; got != (DirPref{Profile: "x", Last: 42}) {
-		t.Fatalf("relido: %+v", got)
+		t.Fatalf("read back: %+v", got)
 	}
 }
 
 func TestProfilesFor(t *testing.T) {
 	c, _ := Parse(DefaultTOML, "/h")
-	if n := len(c.ProfilesFor("claude")); n != 2 {
-		t.Errorf("perfis claude: %d", n)
+	if n := len(c.ProfilesFor("claude")); n != 1 {
+		t.Errorf("claude profiles: %d", n)
 	}
 	if n := len(c.ProfilesFor("opencode")); n != 1 {
-		t.Errorf("perfis opencode: %d", n)
+		t.Errorf("opencode profiles: %d", n)
 	}
 }

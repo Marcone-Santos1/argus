@@ -1,6 +1,7 @@
-// Argus: plugin de status do opencode. Gerado por `argus install`; não editar.
-// Grava "estado\npasta" em __OPENCODE_DIR__/<id da conversa> quando a conversa
-// começa a trabalhar, pede permissão ou termina. Só escreve arquivos.
+// Argus status plugin for opencode. Written by `argus install`; do not edit.
+// Writes "state\nfolder" to __OPENCODE_DIR__/<conversation id> when a
+// conversation starts working, asks for permission or finishes. It only writes
+// files.
 import { mkdirSync, writeFileSync } from "node:fs";
 
 const DIR = "__OPENCODE_DIR__";
@@ -15,8 +16,8 @@ const ArgusStatus = {
       mkdirSync(DIR, { recursive: true });
     } catch {}
 
-    // O mesmo fluxo de eventos chega a todos os plugins carregados; cada um só
-    // grava as conversas da própria pasta.
+    // The same event stream reaches every loaded plugin; each one only writes
+    // the conversations of its own folder.
     function dirOf(id: string): Promise<string | undefined> {
       let d = dirs.get(id);
       if (!d) {

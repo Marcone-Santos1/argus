@@ -4,6 +4,7 @@ import (
 	"os"
 	"unicode/utf8"
 
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
 
@@ -12,7 +13,7 @@ func (p *Panel) handleKey(k string) {
 	case modeConfirm:
 		fn := p.confirmFn
 		p.mode, p.confirmFn = modeList, nil
-		if k == "s" || k == "S" || k == "y" || k == "Y" || k == "enter" {
+		if i18n.Yes(k) {
 			if fn != nil {
 				fn()
 			}
@@ -32,7 +33,7 @@ func (p *Panel) handleKey(k string) {
 	}
 }
 
-// editText aplica uma tecla de edição a um texto; diz se a tecla foi usada.
+// editText applies an editing key to a text; reports whether the key was used.
 func editText(s *string, k string) bool {
 	switch {
 	case k == "backspace":
@@ -226,7 +227,7 @@ func (p *Panel) keyList(k string) {
 	}
 }
 
-// ---------- leitura do teclado ----------
+// ---------- keyboard ----------
 
 func readKeys(ch chan<- string) {
 	buf := make([]byte, 256)
@@ -242,8 +243,8 @@ func readKeys(ch chan<- string) {
 	}
 }
 
-// parseKeys traduz bytes do terminal em nomes de tecla: "up", "enter",
-// "ctrl-U", "esc", ou o próprio caractere.
+// parseKeys turns terminal bytes into key names: "up", "enter", "ctrl-U",
+// "esc", or the character itself.
 func parseKeys(b []byte) []string {
 	var ks []string
 	for i := 0; i < len(b); {

@@ -1,98 +1,102 @@
 # argus
 
-Painel de terminal para rodar várias sessões de [Claude Code](https://claude.com/claude-code) e [opencode](https://opencode.ai) em paralelo, lado a lado, sobre o tmux.
+**English** · [Português](README.pt-BR.md)
+
+A terminal panel for running many [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Gemini CLI](https://github.com/google-gemini/gemini-cli) and Codex sessions side by side, on top of tmux.
 
 ```
 ┌ argus ───────────────────────────┬──────────────────────────────────┐
-│ api  ~/Projects                  │ > corrige o teste de upload      │
-│  1 ▶ claude pes          ● 2m    │                                  │
-│  2   opencode oc         ◐ 40s   │ ⏺ Vou rodar os testes primeiro.  │
-│      Ajustar upload     pes  1d  │   ✓ 42 passed  ✗ 1 failed        │
+│ api  ~/Projects                  │ > fix the upload test            │
+│  1 ▶ claude per          ● 2m    │                                  │
+│  2   opencode oc         ◐ 40s   │ ⏺ Running the tests first.       │
+│      Upload tweaks      per  1d  │   ✓ 42 passed  ✗ 1 failed        │
 │                                  │                                  │
 │ site  ~/Projects/Code            │ > █                              │
-│  3   claude emp ⑂        ✓ 12m   │                                  │
+│  3   claude wor ⑂        ✓ 12m   │                                  │
 ├──────────────────────────────────┤                                  │
-│ CPU 16%  proc/min 60  3 sessões  │                                  │
+│ CPU 16%  proc/min 60  3 sessions │                                  │
 └──────────────────────────────────┴──────────────────────────────────┘
 ```
 
-- **Cada sessão é o próprio CLI** num terminal de verdade: memória, MCPs, skills, hooks e permissões continuam iguais.
-- **A lista é agrupada por pasta**, com o status de cada sessão: ● trabalhando, ◐ esperando você, ✓ terminou. Quando o status muda, chega um aviso do macOS.
-- **Conversas antigas** do Claude Code e do opencode aparecem na lista e são retomadas com Enter.
-- **Vários perfis**, por exemplo duas contas do Claude (`CLAUDE_CONFIG_DIR`) e o opencode.
-- **Worktrees:** `w` abre uma sessão num branch novo, ao lado do repositório, para duas sessões não se atropelarem.
-- **Desempenho medido:** sem daemon, painel sem polling, hook em shell puro. O rodapé mostra CPU e processos criados por minuto e avisa se algo disparar; `argus bench` mede tudo.
+- **Each session is the real CLI** in a real terminal: memory, MCP servers, skills, hooks and permissions work as usual.
+- **The list is grouped by folder**, with each session's status: ● working, ◐ waiting for you, ✓ done. A desktop notification arrives when the status changes.
+- **Past conversations** from Claude Code and opencode show up in the list and resume with Enter.
+- **Several profiles**, for example two Claude accounts (`CLAUDE_CONFIG_DIR`), opencode and Gemini.
+- **Worktrees:** `w` opens a session on a new branch next to the repository, so two sessions never step on each other.
+- **Measured performance:** no daemon, no polling, hooks in plain shell. The footer shows CPU and processes created per minute and warns when something runs away; `argus bench` measures it all.
+- The screen follows your system language (English or Portuguese; `ARGUS_LANG=pt` or `en` forces one).
 
-## Requisitos
+## Requirements
 
-macOS, Go 1.26+, tmux 3.4+ (`brew install tmux`), git (para worktrees).
+macOS or Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (for worktrees). Building needs Go 1.26+.
 
-## Instalação
+## Install
 
 ```sh
 go install github.com/Marcone-Santos1/argus/cmd/argus@latest
-argus install   # hook do Claude Code, plugin do opencode, config do tmux e ~/.config/argus/config.toml
-argus           # abre o painel
+argus install   # hooks for Claude Code, Codex and Gemini, the opencode plugin, tmux config and ~/.config/argus/config.toml
+argus           # open the panel
 ```
 
-`argus install` acrescenta um hook aos `settings.json` do Claude Code, ao lado dos que já existem, e deixa um backup. `argus uninstall` remove tudo.
+`argus install` appends one hook to each agent's settings, next to the hooks already there, and leaves a backup. `argus uninstall` removes everything.
 
-## Teclas
+## Keys
 
-| Tecla | Ação |
+| Key | Action |
 | --- | --- |
-| `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
-| `Enter` | entra na sessão, ou retoma a conversa antiga |
-| `Ctrl+\` | alterna entre a lista e a sessão (de qualquer lugar) |
-| `Tab` | pula para a próxima sessão esperando você |
-| `n` | nova sessão: projeto e perfil |
-| `w` | nova sessão numa worktree do repositório selecionado |
-| `h` | histórico completo, com busca |
-| `/` | filtra a lista |
-| `r` | renomeia a sessão |
-| `Esc` | esconde a sessão da direita sem encerrar (ou limpa o filtro) |
-| `x` | encerra a sessão (e oferece apagar a worktree) |
-| `z` | tela cheia |
-| `1`–`9` | vai direto para a sessão |
-| `q` | fecha o painel; as sessões continuam no tmux |
+| `↑` `↓` | select; an open session shows on the right |
+| `Enter` | enter the session, or resume the past conversation |
+| `Ctrl+\` | switch between the list and the session (from anywhere) |
+| `Tab` | jump to the next session waiting for you |
+| `n` | new session: project and profile |
+| `w` | new session in a worktree of the selected repository |
+| `h` | full history, searchable |
+| `/` | filter the list |
+| `r` | rename the session |
+| `Esc` | hide the session on the right without closing it (or clear the filter) |
+| `x` | close the session (and offer to delete its worktree) |
+| `z` | zoom |
+| `1`–`9` | jump to a session |
+| `q` | close the panel; sessions keep running in tmux |
 
-## Configuração
+## Configuration
 
-`~/.config/argus/config.toml`: pastas de projetos, perfis, regras de perfil por pasta, limite de sessões e quais mudanças de status geram aviso (`notify = ["waiting", "done"]`).
+`~/.config/argus/config.toml`: project folders, profiles, per-folder profile rules, the session limit and which status changes notify you (`notify = ["waiting", "done"]`).
 
-## Como funciona
+## How it works
 
-Um servidor tmux próprio (`tmux -L argus`) guarda as sessões. O painel fica à esquerda e troca a sessão da direita com `swap-pane`. O status vem de arquivos em `~/.local/state/argus/`, gravados pelo hook do Claude Code (shell puro, um processo por evento) e pelo plugin do opencode (dentro do próprio opencode). O painel acompanha esses arquivos via kqueue.
+A dedicated tmux server (`tmux -L argus`) holds the sessions. The panel sits on the left and swaps the session on the right with `swap-pane`. Status comes from files in `~/.local/state/argus/`, written by the Claude Code, Codex and Gemini hook (plain shell, one process per event) and by the opencode plugin (inside opencode itself). The panel watches those files with kqueue/inotify.
 
-A especificação completa, com regras, metas de desempenho e decisões, está em [`docs/especificacao.html`](docs/especificacao.html).
+The full specification, with rules, performance targets and decisions, is in [`docs/especificacao.html`](docs/especificacao.html) (Portuguese).
 
-## Desenvolvimento
+## Development
 
 ```
-cmd/argus/          comando (main)
+cmd/argus/          the command
 internal/
   bench/            argus bench
-  config/           config.toml e preferências por pasta
-  history/          conversas antigas (transcrições do Claude, banco do opencode)
-  install/          hook, plugin e config do tmux (assets/)
-  notify/           avisos do macOS
-  paths/            caminhos no disco
-  status/           estado de cada sessão
-  sysmon/           CPU e processos por minuto
-  tmux/             cliente do servidor tmux
-  ui/               o painel
-  worktree/         worktrees do git
+  config/           config.toml and per-folder preferences
+  history/          past conversations (Claude transcripts, opencode database)
+  i18n/             on-screen text in English and Portuguese
+  install/          hook, plugin and tmux config (assets/)
+  notify/           desktop notifications
+  paths/            on-disk locations
+  status/           each session's state
+  sysmon/           CPU and processes per minute
+  tmux/             tmux server client
+  ui/               the panel
+  worktree/         git worktrees
 ```
 
 ```sh
-make test     # testes (os de integração usam tmux e git de verdade, num servidor próprio)
-make check    # gofmt, vet e testes com -race (o que o CI roda)
-make install  # compila em ~/.local/bin/argus e roda argus install
-make bench    # mede o desempenho com o painel aberto
+make test     # tests (integration tests use real tmux and git, on their own server)
+make check    # gofmt, vet and tests with -race (what CI runs, on macOS and Linux)
+make install  # build into ~/.local/bin/argus and run argus install
+make bench    # measure performance with the panel open
 ```
 
-Toda mudança precisa manter o `argus bench` dentro dos limites da especificação.
+Every change must keep `argus bench` within the limits in the specification.
 
-## Licença
+## License
 
 [MIT](LICENSE).

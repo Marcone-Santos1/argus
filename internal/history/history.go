@@ -1,5 +1,5 @@
-// Package history lista as conversas antigas do Claude Code (transcrições
-// .jsonl) e do opencode (banco sqlite), para retomá-las.
+// Package history lists past Claude Code conversations (.jsonl transcripts)
+// and opencode conversations (sqlite database), so they can be resumed.
 package history
 
 import (
@@ -16,15 +16,17 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 )
 
-// Ferramentas.
+// Tools.
 const (
 	Claude   = "claude"
 	Opencode = "opencode"
 )
 
-// Entry é uma conversa que pode ser retomada.
+// Entry is a conversation that can be resumed.
 type Entry struct {
 	Tool    string    `json:"tool"`
 	ID      string    `json:"id"`
@@ -32,20 +34,20 @@ type Entry struct {
 	Title   string    `json:"title"`
 	Account string    `json:"account"` // accountUuid (Claude)
 	Updated time.Time `json:"updated"`
-	Profile string    `json:"-"` // perfil sugerido; vazio = perguntar
+	Profile string    `json:"-"` // suggested profile; empty = ask
 }
 
-// Key identifica a conversa entre ferramentas.
+// Key identifies the conversation across tools.
 func (e Entry) Key() string { return e.Tool + ":" + e.ID }
 
-// Loader sabe onde procurar conversas.
+// Loader knows where to look for conversations.
 type Loader struct {
 	ClaudeProjects  string            // ~/.claude/projects
-	Cache           string            // índice para não reler transcrições sem mudança
+	Cache           string            // index so unchanged transcripts are not read again
 	Accounts        map[string]string // accountUuid -> perfil
-	OpencodeDB      string            // vazio = sem opencode
+	OpencodeDB      string            // empty = no opencode
 	OpencodeProfile string
-	SQLite          string // binário do sqlite3 (padrão /usr/bin/sqlite3)
+	SQLite          string // sqlite3 binary (default: from PATH)
 
 	mu sync.Mutex
 }
@@ -56,10 +58,10 @@ type cacheItem struct {
 	Entry Entry `json:"entry"`
 }
 
-// Chunk é quanto se lê do começo e do fim de cada transcrição.
+// Chunk is how much is read from the start and the end of each transcript.
 const Chunk = 512 << 10
 
-// Load devolve as conversas que ainda podem ser retomadas, mais recentes primeiro.
+// Load returns the conversations that can still be resumed, newest first.
 func (l *Loader) Load() []Entry {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -133,7 +135,7 @@ func isDir(p string) bool {
 	return err == nil && fi.IsDir()
 }
 
-// AccountOf lê a conta logada num .claude.json.
+// AccountOf reads the logged-in account from a .claude.json.
 func AccountOf(claudeJSON string) string {
 	b, err := os.ReadFile(claudeJSON)
 	if err != nil {
@@ -158,8 +160,8 @@ func readAt(f *os.File, off, n int64) []byte {
 	return buf[:k]
 }
 
-// ParseTranscript lê só o começo (pasta, primeiro prompt) e o fim (título, conta)
-// de uma transcrição do Claude Code. As transcrições podem ter centenas de MB.
+// ParseTranscript reads only the start (folder, first prompt) and the end
+// (title, account) of a Claude Code transcript; transcripts can reach hundreds of MB.
 func ParseTranscript(path string, size int64) (Entry, bool) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -174,7 +176,7 @@ func ParseTranscript(path string, size int64) (Entry, bool) {
 	if tailOff > 0 {
 		tail = readAt(f, tailOff, size-tailOff)
 		if i := bytes.IndexByte(tail, '\n'); i >= 0 {
-			tail = tail[i+1:] // primeira linha veio cortada
+			tail = tail[i+1:] // the first line was cut
 		}
 	}
 	if m := cwdRe.FindSubmatch(head); m != nil {
@@ -193,7 +195,7 @@ func ParseTranscript(path string, size int64) (Entry, bool) {
 	return e, e.Dir != ""
 }
 
-// scanMeta procura, de trás para frente, o título mais recente e a conta.
+// scanMeta searches backwards for the latest title and the account.
 func scanMeta(b []byte, e *Entry) {
 	lines := bytes.Split(b, []byte{'\n'})
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -231,7 +233,7 @@ func scanMeta(b []byte, e *Entry) {
 	}
 }
 
-// FirstPrompt devolve o primeiro prompt digitado (sem mensagens internas).
+// FirstPrompt returns the first prompt the user typed (skipping internal messages).
 func FirstPrompt(head []byte) string {
 	sc := bufio.NewScanner(bytes.NewReader(head))
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
@@ -269,7 +271,7 @@ func FirstPrompt(head []byte) string {
 		}
 		return strings.Join(strings.Fields(text), " ")
 	}
-	return "(sem título)"
+	return i18n.T("history.untitled")
 }
 
 func firstNonEmpty(s ...string) string {
@@ -281,7 +283,7 @@ func firstNonEmpty(s ...string) string {
 	return ""
 }
 
-// opencode lê o banco do opencode com o sqlite3 do sistema (um processo, só ao abrir).
+// opencode reads opencode's database with the system sqlite3 (one process, only when opened).
 func (l *Loader) opencode() []Entry {
 	if l.OpencodeDB == "" || l.OpencodeProfile == "" {
 		return nil
@@ -291,7 +293,10 @@ func (l *Loader) opencode() []Entry {
 	}
 	bin := l.SQLite
 	if bin == "" {
-		bin = "/usr/bin/sqlite3"
+		var err error
+		if bin, err = exec.LookPath("sqlite3"); err != nil {
+			return nil
+		}
 	}
 	q := `select id, directory, title, time_updated from session_v2 where parent_id is null and time_archived is null
 union all select id, directory, title, time_updated from session where parent_id is null and time_archived is null
@@ -305,7 +310,7 @@ union all select id, directory, title, time_updated from session where parent_id
 	return ParseOpencodeRows(string(out), l.OpencodeProfile)
 }
 
-// ParseOpencodeRows interpreta a saída do sqlite3 (campos separados por 0x1f).
+// ParseOpencodeRows interprets sqlite3 output (fields separated by 0x1f).
 func ParseOpencodeRows(out, profile string) []Entry {
 	var es []Entry
 	for _, line := range strings.Split(strings.TrimSpace(out), "\n") {
@@ -319,7 +324,7 @@ func ParseOpencodeRows(out, profile string) []Entry {
 	return es
 }
 
-// ResumeArgs são os argumentos que cada ferramenta usa para retomar uma conversa.
+// ResumeArgs are the arguments each tool uses to resume a conversation.
 func ResumeArgs(tool, id string) []string {
 	if tool == Opencode {
 		return []string{"--session", id}
@@ -329,5 +334,5 @@ func ResumeArgs(tool, id string) []string {
 
 var safeID = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 
-// SafeID diz se o id pode ir numa linha de comando sem escape.
+// SafeID reports whether the id can go on a command line without escaping.
 func SafeID(id string) bool { return safeID.MatchString(id) }

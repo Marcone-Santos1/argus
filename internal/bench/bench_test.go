@@ -16,16 +16,16 @@ func TestParseCPUTime(t *testing.T) {
 	}
 	for in, want := range cases {
 		if got := ParseCPUTime(in); got != want {
-			t.Errorf("ParseCPUTime(%q) = %v, quer %v", in, got, want)
+			t.Errorf("ParseCPUTime(%q) = %v, want %v", in, got, want)
 		}
 	}
 }
 
 func TestPrint(t *testing.T) {
 	var b bytes.Buffer
-	Print(&b, []Row{{"a", "< 1", "0,5", ok(true)}, {"b", "< 1", "2", ok(false)}, {"c", "", "info", nil}})
+	Print(&b, []Row{{"a", "< 1", "0.5", ok(true)}, {"b", "< 1", "2", ok(false)}, {"c", "", "info", nil}})
 	out := b.String()
-	if !strings.Contains(out, "✓ 0,5") || !strings.Contains(out, "✗ 2") || strings.Contains(out, "✓ info") {
-		t.Fatalf("relatório:\n%s", out)
+	if !strings.Contains(out, "✓ 0.5") || !strings.Contains(out, "✗ 2") || strings.Contains(out, "✓ info") {
+		t.Fatalf("report:\n%s", out)
 	}
 }

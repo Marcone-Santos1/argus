@@ -1,4 +1,4 @@
-// Package paths reúne os caminhos que o Argus usa no disco.
+// Package paths gathers the on-disk locations Argus uses.
 package paths
 
 import (
@@ -7,15 +7,15 @@ import (
 	"strings"
 )
 
-// Paths são os diretórios do Argus para um usuário (Home) e um servidor tmux.
+// Paths are the Argus directories for one user (Home) and one tmux server.
 type Paths struct {
-	Home  string // diretório do usuário
-	State string // estado volátil: status das sessões, índices, métricas
-	Share string // arquivos instalados (hook)
-	Conf  string // configuração
+	Home  string // the user's home directory
+	State string // volatile state: session statuses, indexes, metrics
+	Share string // installed files (the hook)
+	Conf  string // configuration
 }
 
-// Default usa o diretório do usuário atual.
+// Default uses the current user's home directory.
 func Default(socket string) Paths {
 	h, err := os.UserHomeDir()
 	if err != nil {
@@ -24,9 +24,9 @@ func Default(socket string) Paths {
 	return For(h, socket)
 }
 
-// For monta os caminhos para um home. Um servidor tmux de teste (socket diferente
-// de "argus") ganha um diretório de estado próprio, para nunca mexer no estado
-// das sessões do servidor de verdade.
+// For builds the paths for a home directory. A test tmux server (any socket
+// other than "argus") gets its own state directory, so it never touches the
+// state of the real server's sessions.
 func For(home, socket string) Paths {
 	state := filepath.Join(home, ".local", "state", "argus")
 	if socket != "" && socket != "argus" {
@@ -48,26 +48,37 @@ func (p Paths) HistoryCache() string { return filepath.Join(p.State, "_history.j
 func (p Paths) Metrics() string      { return filepath.Join(p.State, "_metrics") }
 func (p Paths) TmuxEvent() string    { return filepath.Join(p.State, "_tmux") }
 
-// Opencode é onde o plugin do opencode grava o status de cada conversa.
+// Opencode is where the opencode plugin writes each conversation's status.
 func (p Paths) Opencode() string { return filepath.Join(p.State, "_opencode") }
 
-// Status é o arquivo de status de uma sessão.
+// Status is the status file of one session.
 func (p Paths) Status(id string) string { return filepath.Join(p.State, id) }
 
-// OpencodePlugins é a pasta de plugins do opencode.
+// OpencodePlugins is opencode's plugin directory.
 func (p Paths) OpencodePlugins() string {
 	return filepath.Join(p.Home, ".config", "opencode", "plugins")
 }
 
-// OpencodeDB é o banco de conversas do opencode.
+// OpencodeDB is opencode's conversation database.
 func (p Paths) OpencodeDB() string {
 	return filepath.Join(p.Home, ".local", "share", "opencode", "opencode.db")
 }
 
-// ClaudeProjects guarda as transcrições do Claude Code.
+// ClaudeProjects holds Claude Code's transcripts.
 func (p Paths) ClaudeProjects() string { return filepath.Join(p.Home, ".claude", "projects") }
 
-// Expand troca um "~" inicial pelo home.
+// CodexHooks is Codex's hook file (CODEX_HOME overrides ~/.codex).
+func (p Paths) CodexHooks() string {
+	if h := os.Getenv("CODEX_HOME"); h != "" {
+		return filepath.Join(h, "hooks.json")
+	}
+	return filepath.Join(p.Home, ".codex", "hooks.json")
+}
+
+// GeminiSettings is the Gemini CLI user settings file.
+func (p Paths) GeminiSettings() string { return filepath.Join(p.Home, ".gemini", "settings.json") }
+
+// Expand replaces a leading "~" with the home directory.
 func (p Paths) Expand(s string) string {
 	if s == "~" {
 		return p.Home
@@ -78,7 +89,7 @@ func (p Paths) Expand(s string) string {
 	return s
 }
 
-// Pretty abrevia o home como "~" para exibição.
+// Pretty abbreviates the home directory as "~" for display.
 func (p Paths) Pretty(path string) string {
 	rel, err := filepath.Rel(p.Home, path)
 	if err != nil || strings.HasPrefix(rel, "..") {

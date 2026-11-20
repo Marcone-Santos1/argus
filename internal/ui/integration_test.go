@@ -11,12 +11,12 @@ import (
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
 
-// Integração com um servidor tmux de verdade: criar, mostrar, esconder e
-// encerrar sessões. O "agente" é um sleep, e o painel é um painel tmux qualquer.
+// Integration with a real tmux server: create, show, hide and close sessions.
+// The "agent" is a sleep, and the panel is just some tmux pane.
 func TestSessionsWithRealTmux(t *testing.T) {
 	tc := tmux.New(fmt.Sprintf("argus-ui-%d", os.Getpid()))
 	if _, err := exec.LookPath(tc.Bin); err != nil {
-		t.Skip("tmux não instalado")
+		t.Skip("tmux not installed")
 	}
 	t.Cleanup(func() { _, _ = tc.Run("kill-server") })
 	t.Setenv("SHELL", "/bin/sh")
@@ -29,7 +29,7 @@ func TestSessionsWithRealTmux(t *testing.T) {
 	cfg, err := config.Parse(`
 [[profile]]
 name = "fake"
-group = "PESSOAL"
+group = "PERSONAL"
 command = "sleep 300"
 `, home)
 	if err != nil {
@@ -60,45 +60,45 @@ command = "sleep 300"
 
 	pn.reconcile()
 	if m := mainPanes(); len(m) != 2 || m[1].Role != tmux.RolePlaceholder {
-		t.Fatalf("sem sessões, a direita mostra o espaço vazio: %+v", m)
+		t.Fatalf("with no sessions, the right shows the empty space: %+v", m)
 	}
 
 	dir := t.TempDir()
 	pn.createAgent(dir, cfg.Profiles[0], nil, "")
 	if len(pn.agents) != 1 || !pn.agents[0].Displayed {
-		t.Fatalf("sessão criada e mostrada: %+v (msg %q)", pn.agents, pn.msg)
+		t.Fatalf("session created and shown: %+v (msg %q)", pn.agents, pn.msg)
 	}
 	if m := mainPanes(); len(m) != 2 || m[1].Role != tmux.RoleAgent {
-		t.Fatalf("a sessão ocupa a direita: %+v", m)
+		t.Fatalf("the session takes the right side: %+v", m)
 	}
 
 	pn.createAgent(dir, cfg.Profiles[0], nil, "")
 	if len(pn.agents) != 2 || pn.agents[1].Name == pn.agents[0].Name {
-		t.Fatalf("segunda sessão na mesma pasta ganha outro nome: %+v", pn.agents)
+		t.Fatalf("a second session in the same folder gets another name: %+v", pn.agents)
 	}
 
 	pn.hideSession()
 	for _, a := range pn.agents {
 		if a.Displayed {
-			t.Fatalf("Esc esconde: %+v", pn.agents)
+			t.Fatalf("Esc hides: %+v", pn.agents)
 		}
 	}
 	if m := mainPanes(); m[1].Role != tmux.RolePlaceholder || len(pn.agents) != 2 {
-		t.Fatalf("escondida, mas viva: %+v", m)
+		t.Fatalf("hidden but alive: %+v", m)
 	}
 
 	pn.sel = pn.nthAgentItem(0)
 	if !pn.showSelected() || !pn.current().Displayed {
-		t.Fatal("mostrar de novo")
+		t.Fatal("show again")
 	}
 	pn.killSelected()
-	if pn.mode == modeConfirm { // ociosa: não pede confirmação
-		t.Fatal("sessão ociosa não pede confirmação")
+	if pn.mode == modeConfirm { // idle: no confirmation
+		t.Fatal("an idle session does not ask for confirmation")
 	}
 	if len(pn.agents) != 1 {
-		t.Fatalf("encerrada: %+v", pn.agents)
+		t.Fatalf("closed: %+v", pn.agents)
 	}
 	if m := mainPanes(); len(m) != 2 || m[1].Role != tmux.RolePlaceholder {
-		t.Fatalf("depois de encerrar a visível, volta o espaço vazio: %+v", m)
+		t.Fatalf("after closing the visible one, the empty space is back: %+v", m)
 	}
 }
