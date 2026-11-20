@@ -32,10 +32,16 @@ macOS ou Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (para 
 ## Instalação
 
 ```sh
-brew trust marcone-santos1/tap                  # o Homebrew recente pede para confiar em taps de terceiros
-brew install marcone-santos1/tap/argus-panel   # ou: go install github.com/Marcone-Santos1/argus/cmd/argus@latest
+curl -fsSL https://raw.githubusercontent.com/Marcone-Santos1/argus/main/install.sh | sh
 argus install   # hooks do Claude Code, Codex e Gemini, plugin do opencode, config do tmux e ~/.config/argus/config.toml
 argus           # abre o painel
+```
+
+O script baixa a última versão para o seu sistema, confere o SHA-256 e coloca o `argus` em `~/.local/bin` (`ARGUS_INSTALL_DIR` muda isso). Outros jeitos:
+
+```sh
+brew trust marcone-santos1/tap && brew install marcone-santos1/tap/argus-panel   # Homebrew
+go install github.com/Marcone-Santos1/argus/cmd/argus@latest                      # pelo código
 ```
 
 `argus install` acrescenta um hook aos `settings.json` do Claude Code, ao lado dos que já existem, e deixa um backup. `argus uninstall` remove tudo.

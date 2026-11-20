@@ -33,10 +33,16 @@ macOS or Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (for w
 ## Install
 
 ```sh
-brew trust marcone-santos1/tap                  # recent Homebrew asks you to trust third-party taps
-brew install marcone-santos1/tap/argus-panel   # or: go install github.com/Marcone-Santos1/argus/cmd/argus@latest
+curl -fsSL https://raw.githubusercontent.com/Marcone-Santos1/argus/main/install.sh | sh
 argus install   # hooks for Claude Code, Codex and Gemini, the opencode plugin, tmux config and ~/.config/argus/config.toml
 argus           # open the panel
+```
+
+The script downloads the latest release for your system, checks its SHA-256 and puts `argus` in `~/.local/bin` (`ARGUS_INSTALL_DIR` changes it). Other ways:
+
+```sh
+brew trust marcone-santos1/tap && brew install marcone-santos1/tap/argus-panel   # Homebrew
+go install github.com/Marcone-Santos1/argus/cmd/argus@latest                      # from source
 ```
 
 `argus install` appends one hook to each agent's settings, next to the hooks already there, and leaves a backup. `argus uninstall` removes everything.
