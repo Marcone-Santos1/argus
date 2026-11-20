@@ -32,6 +32,7 @@ macOS ou Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (para 
 ## Instalação
 
 ```sh
+brew trust marcone-santos1/tap                  # o Homebrew recente pede para confiar em taps de terceiros
 brew install marcone-santos1/tap/argus-panel   # ou: go install github.com/Marcone-Santos1/argus/cmd/argus@latest
 argus install   # hooks do Claude Code, Codex e Gemini, plugin do opencode, config do tmux e ~/.config/argus/config.toml
 argus           # abre o painel
