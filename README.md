@@ -92,3 +92,7 @@ make bench    # mede o desempenho com o painel aberto
 ```
 
 Toda mudança precisa manter o `argus bench` dentro dos limites da especificação.
+
+## Licença
+
+[MIT](LICENSE).
