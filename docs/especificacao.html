@@ -93,7 +93,7 @@ svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 </svg>
 <figcaption>Arquitetura do Argus · 3 perfis, 1 painel</figcaption>
 </figure>
-<p>O painel também dispara as notificações do macOS quando um arquivo muda para "esperando você". O CLI genérico, sem hook, é acompanhado pela atividade da própria janela no tmux.</p>
+<p>O painel também dispara as notificações do macOS quando uma sessão passa a esperar você ou termina (configurável em <code>notify</code>). Os avisos só existem com o painel aberto, porque não há daemon. O status do opencode vem de um plugin que roda dentro do próprio opencode e grava um arquivo por conversa em <code>~/.local/state/argus/_opencode/</code>.</p>
 
 <h2 id="perfis">Perfis e projetos</h2>
 <p>Um perfil é um comando com seu ambiente. Os três iniciais reaproveitam o que já está configurado nesta máquina, e qualquer CLI novo entra com uma linha a mais em <code>~/.config/argus/config.toml</code>.</p>
@@ -103,7 +103,7 @@ svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 <tr><td>claude-pessoal</td><td><code>claude</code></td><td>config padrão em <code>~/.claude</code></td><td>hook <code>sh</code> em <code>~/.claude/settings.json</code></td></tr>
 <tr><td>claude-work</td><td><code>claude</code></td><td><code>CLAUDE_CONFIG_DIR=~/.claude-work</code></td><td>hook <code>sh</code> em <code>~/.claude-work/settings.json</code></td></tr>
 <tr><td>opencode</td><td><code>opencode</code></td><td>config em <code>~/.config/opencode</code></td><td>plugin em <code>~/.config/opencode/plugins/</code></td></tr>
-<tr><td>(genérico)</td><td>qualquer CLI</td><td>o que a linha do perfil definir</td><td>atividade da janela no tmux</td></tr>
+<tr><td>(outro CLI)</td><td>qualquer CLI</td><td>o que a linha do perfil definir</td><td>sem status por enquanto (ver Decisões)</td></tr>
 </tbody>
 </table>
 <p><strong>Como uma pasta escolhe o perfil:</strong></p>
@@ -115,7 +115,7 @@ svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 <p>Os projetos oferecidos no <code>n</code> vêm das raízes listadas no config (de início, <code>~/Projects</code> até dois níveis de profundidade e <code>~/Sites</code>), ordenados pelo uso mais recente.</p>
 
 <h2 id="estados">Estados da sessão</h2>
-<p>Toda sessão está em um de cinco estados. Os eventos dos hooks (Claude) e do plugin (opencode) movem a sessão de um estado para outro; o CLI genérico usa só "trabalhando" e "parado", pela atividade da tela.</p>
+<p>Toda sessão está em um de cinco estados. Os eventos dos hooks (Claude) e do plugin (opencode) movem a sessão de um estado para outro; outros CLIs ficam como "parado" (ver Decisões).</p>
 <figure>
 <svg viewBox="0 0 760 360" role="img" aria-label="Uma sessão só sai de trabalhando quando o agente para ou pede algo" font-size="13">
 <defs><marker id="st-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="var(--edge)"/></marker></defs>
@@ -268,13 +268,16 @@ svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 <p>A barra de status do tmux fica desligada, porque o painel já mostra tudo. O prefixo do tmux também fica desligado para não roubar teclas do Claude: o único atalho global é <code>Ctrl+\</code>.</p>
 
 <h2 id="fases">Fases de entrega</h2>
-<p>Cada fase termina com o <code>argus bench</code> dentro dos limites e com você usando o Argus no dia a dia antes da próxima começar.</p>
-<ol>
-<li><strong>Base.</strong> Instalar o tmux e criar a config do tmux do Argus. Perfis, lista agrupada, lado a lado, <code>n</code>, <code>Enter</code>, <code>Ctrl+\</code>, <code>x</code>, <code>q</code>. Hooks dos dois Claude e o <code>argus bench</code>.</li>
-<li><strong>Status completo.</strong> Plugin do opencode, status genérico pela atividade do tmux, notificações no macOS e a tecla <code>Tab</code> para a próxima sessão esperando você.</li>
-<li><strong>Worktrees.</strong> A tecla <code>w</code> cria a worktree e a sessão nela. Ao encerrar, o Argus pergunta se apaga a worktree, e só apaga se ela não tiver mudanças sem commit.</li>
-<li><strong>Guarda e acabamento.</strong> Rodapé com CPU e processos por minuto, alerta de tempestade de processos, <code>/</code>, <code>r</code>, <code>1</code> a <code>9</code>, <code>argus uninstall</code>.</li>
-</ol>
+<p>As quatro fases foram entregues em 20/11/2026, cada uma com o <code>argus bench</code> dentro dos limites.</p>
+<table>
+<thead><tr><th>Fase</th><th>O que entrou</th><th>Situação</th></tr></thead>
+<tbody>
+<tr><td>1. Base</td><td>tmux próprio, perfis, lista, sessão lado a lado, <code>n</code>, <code>Enter</code>, <code>Ctrl+\</code>, <code>x</code>, <code>q</code>, hooks do Claude, <code>argus bench</code>, histórico e lista por pasta</td><td>entregue</td></tr>
+<tr><td>2. Status completo</td><td>plugin de status do opencode, avisos do macOS, <code>Tab</code> para a próxima sessão esperando você</td><td>entregue; status genérico adiado</td></tr>
+<tr><td>3. Worktrees</td><td><code>w</code> cria worktree e sessão; ao encerrar, pergunta se apaga e só apaga se estiver limpa</td><td>entregue</td></tr>
+<tr><td>4. Guarda e acabamento</td><td>rodapé com CPU e processos/min, alarme de tempestade, <code>/</code>, <code>r</code>, <code>1</code>–<code>9</code>, <code>argus uninstall</code></td><td>entregue</td></tr>
+</tbody>
+</table>
 
 <h2 id="perguntas">Decisões</h2>
 <table>
@@ -284,6 +287,10 @@ svg text{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
 <tr><td>Projetos da empresa</td><td>Ficam junto em <code>~/Projects</code>; o perfil é lembrado por pasta.</td></tr>
 <tr><td>Atalho global</td><td><code>Ctrl+\</code>, porque <code>Ctrl+Espaço</code> é a troca de idioma do teclado no macOS.</td></tr>
 <tr><td>CLIs na fase 1</td><td>Só claude pessoal, claude empresa e opencode. Outros entram depois pelo config.</td></tr>
+<tr><td>Status de CLIs sem hook</td><td>Adiado. O alerta de atividade do tmux dispara uma vez por janela e não vale para a janela visível, então daria um status errado. Os três perfis atuais têm status próprio.</td></tr>
+<tr><td>Onde ficam as worktrees</td><td><code>&lt;repo&gt;.worktrees/&lt;branch&gt;</code>, ao lado do repositório, para não aparecerem dentro do projeto nem no <code>git status</code> dele.</td></tr>
+<tr><td>Medir processos por minuto</td><td>O macOS não expõe o próximo PID. A cada 2 s o painel cria um <code>/usr/bin/true</code> e compara os PIDs; a própria sonda é descontada. CPU vem do <code>host_statistics</code>, sem processo.</td></tr>
+<tr><td>Organização do código</td><td>Padrão do guia oficial do Go (<a href="https://go.dev/doc/modules/layout">Organizing a Go module</a>): <code>cmd/argus</code> para o comando e pacotes em <code>internal/</code>. Sem <code>pkg/</code>, que o guia não usa.</td></tr>
 <tr><td>Linguagem do painel</td><td>Go puro, sem Bubble Tea: o Bubble Tea redesenha a tela 60 vezes por segundo mesmo parado, e o painel só deve acordar com tecla, arquivo ou o relógio de 2 s.</td></tr>
 <tr><td>Shell do hook</td><td><code>/bin/dash</code>: no macOS, <code>/bin/sh</code> passa pelo bash e custava ~4,9 ms por evento; com dash, 3,4 ms.</td></tr>
 </tbody>

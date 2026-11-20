@@ -1,4 +1,4 @@
-module argus
+module github.com/Marcone-Santos1/argus
 
 go 1.26.0
 
