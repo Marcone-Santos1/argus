@@ -106,7 +106,33 @@ func TmuxConf(stateDir string) string {
 	s := strings.ReplaceAll(tmuxConf, "__STATE_DIR__", stateDir)
 	safe := func(k string) string { return strings.ReplaceAll(i18n.T(k), `"`, `'`) }
 	s = strings.ReplaceAll(s, "__PLACEHOLDER__", safe("tmux.placeholder"))
-	return strings.ReplaceAll(s, "__COPIED__", safe("tmux.copied"))
+	s = strings.ReplaceAll(s, "__COPIED__", safe("tmux.copied"))
+	return s + typingBindings()
+}
+
+// typingBindings makes typing leave copy mode: after selecting text with the
+// mouse, the first key you type exits copy mode and goes to the session, as
+// if you had pressed Esc first. Arrows, Page Up/Down, Esc and the mouse keep
+// their copy-mode meaning. ("Any" is not bound: it would also catch mouse
+// releases and leave copy mode on a plain click.)
+func typingBindings() string {
+	var b strings.Builder
+	b.WriteString("\n# Typing leaves copy mode and goes to the session (generated).\n")
+	quote := func(c byte) string {
+		if c == '\'' {
+			return `"'"`
+		}
+		return "'" + string(c) + "'"
+	}
+	for _, table := range []string{"copy-mode", "copy-mode-vi"} {
+		for c := byte('!'); c <= '~'; c++ {
+			fmt.Fprintf(&b, "bind -T %s %s send -X cancel \\; send-keys -l %s\n", table, quote(c), quote(c))
+		}
+		for _, k := range []string{"Space", "Enter", "BSpace", "Tab"} {
+			fmt.Fprintf(&b, "bind -T %s %s send -X cancel \\; send-keys %s\n", table, k, k)
+		}
+	}
+	return b.String()
 }
 
 // OpencodePlugin is the plugin ready for an opencode state directory.
