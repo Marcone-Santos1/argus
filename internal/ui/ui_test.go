@@ -261,3 +261,26 @@ func TestSessionText(t *testing.T) {
 		}
 	}
 }
+
+// Claude does not record an account switch in the transcript, so Argus
+// remembers it: the conversation reopens in the account it was switched to.
+func TestRememberedProfileWins(t *testing.T) {
+	p := testPanel(t)
+	other := p.d.Config.Profiles[len(p.d.Config.Profiles)-1].Name
+	p.prefs.Sessions["claude:abc"] = other
+	p.prefs.Sessions["claude:gone"] = "profile-that-no-longer-exists"
+	es := p.withRemembered([]history.Entry{
+		{Tool: "claude", ID: "abc", Profile: p.d.Config.Profiles[0].Name},
+		{Tool: "claude", ID: "gone", Profile: p.d.Config.Profiles[0].Name},
+		{Tool: "opencode", ID: "abc", Profile: "x"},
+	})
+	if es[0].Profile != other {
+		t.Errorf("switched conversation: %q, want %q", es[0].Profile, other)
+	}
+	if es[1].Profile != p.d.Config.Profiles[0].Name {
+		t.Errorf("a deleted profile is ignored: %q", es[1].Profile)
+	}
+	if es[2].Profile != "x" {
+		t.Errorf("same id in another tool is another conversation: %q", es[2].Profile)
+	}
+}

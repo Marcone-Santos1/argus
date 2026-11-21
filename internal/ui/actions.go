@@ -321,6 +321,9 @@ func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Ent
 		prefDir = wtRepo
 	}
 	p.prefs.Dirs[prefDir] = config.DirPref{Profile: prof.Name, Last: time.Now().Unix()}
+	if resume != nil {
+		p.prefs.Sessions[resume.Key()] = prof.Name
+	}
 	_ = p.prefs.Save()
 
 	p.reconcile()
@@ -355,7 +358,7 @@ func (p *Panel) openHistory() {
 	p.resume = nil
 	p.setZoom(true)
 	t := time.Now()
-	p.histAll = p.hist.Load()
+	p.histAll = p.withRemembered(p.hist.Load())
 	p.metrics["history_ms"] = float64(time.Since(t).Microseconds()) / 1000
 	p.saveMetrics()
 	p.applyHistFilter()
@@ -374,8 +377,22 @@ func (p *Panel) refreshRecent() {
 
 func (p *Panel) setRecent(all []history.Entry) {
 	key := p.selKey()
-	p.histAll = all
+	p.histAll = p.withRemembered(all)
 	p.rebuildItems(key)
+}
+
+// withRemembered applies the profile each conversation was last opened with
+// in Argus (an account switch, or the answer to "which account?"), over the
+// account the transcript recorded when the conversation started.
+func (p *Panel) withRemembered(es []history.Entry) []history.Entry {
+	for i := range es {
+		if name, ok := p.prefs.Sessions[es[i].Key()]; ok {
+			if _, exists := p.d.Config.Profile(name); exists {
+				es[i].Profile = name
+			}
+		}
+	}
+	return es
 }
 
 func matchTerms(hay, filter string) bool {
@@ -477,6 +494,8 @@ func (p *Panel) doSwitch(prof config.Profile) {
 			return
 		}
 		_ = p.d.Tmux.SetPaneOptions(target.Pane, "@argus_profile", prof.Name, "@argus_session", target.Session)
+		p.prefs.Sessions[resume.Key()] = prof.Name
+		_ = p.prefs.Save()
 		_ = os.WriteFile(p.d.Paths.Status(target.ID), []byte(status.Idle+"\n"+target.Session+"\n"), 0o644)
 		p.flash(i18n.T("msg.switched", target.Name, prof.Name))
 		p.reconcile()

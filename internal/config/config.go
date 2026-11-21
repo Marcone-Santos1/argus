@@ -255,7 +255,12 @@ type DirPref struct {
 // Prefs are the preferences remembered per folder.
 type Prefs struct {
 	Dirs map[string]DirPref `json:"dirs"`
-	path string
+	// Sessions maps a conversation ("tool:id") to the profile it was last
+	// opened with. Claude does not record an account switch in the
+	// transcript, so without this a switched conversation would reopen in
+	// its original account.
+	Sessions map[string]string `json:"sessions,omitempty"`
+	path     string
 }
 
 // LoadPrefs reads the preferences; a missing or invalid file yields empty ones.
@@ -266,6 +271,9 @@ func LoadPrefs(path string) *Prefs {
 	}
 	if p.Dirs == nil {
 		p.Dirs = map[string]DirPref{}
+	}
+	if p.Sessions == nil {
+		p.Sessions = map[string]string{}
 	}
 	return p
 }
