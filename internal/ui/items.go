@@ -69,8 +69,9 @@ func (p *Panel) rebuildItems(keep string) {
 	var pastDirs []string
 	seen := map[string]bool{}
 	recentBy := map[string][]history.Entry{}
+	hidden := map[string]bool{}
 	for _, e := range p.histAll {
-		if open[e.ID] {
+		if open[e.ID] || isTemp(e.Dir) {
 			continue
 		}
 		if p.listFilter != "" && !matchTerms(e.Dir+" "+e.Title+" "+e.Profile+" "+e.Tool, p.listFilter) {
@@ -78,6 +79,7 @@ func (p *Panel) rebuildItems(keep string) {
 		}
 		if _, isOpen := agentsBy[e.Dir]; !isOpen && !seen[e.Dir] {
 			if len(pastDirs) == recentFolders {
+				hidden[e.Dir] = true
 				continue
 			}
 			seen[e.Dir] = true
@@ -87,6 +89,7 @@ func (p *Panel) rebuildItems(keep string) {
 			recentBy[e.Dir] = append(recentBy[e.Dir], e)
 		}
 	}
+	p.hiddenFolders = len(hidden)
 	old := p.sel
 	p.items = p.items[:0]
 	for _, d := range openDirs {

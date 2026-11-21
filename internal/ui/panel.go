@@ -104,8 +104,13 @@ type Panel struct {
 	oc        map[string]status.Opencode
 	lastState map[string]string // to notify only on changes
 
-	reading     sysmon.Reading
-	stormWarned bool
+	reading sysmon.Reading
+	cpuHist []float64 // last CPU readings, for the footer sparkline
+
+	hiddenFolders int               // folders with old conversations left out of the list
+	prevLines     []string          // what is on screen, to redraw only what changed
+	titles        map[string]string // pane title already set, per pane
+	stormWarned   bool
 
 	msg      string
 	msgUntil time.Time
@@ -151,7 +156,7 @@ func New(d Deps) *Panel {
 	return &Panel{
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
-		oc: map[string]status.Opencode{}, lastState: map[string]string{},
+		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
 }
@@ -244,6 +249,12 @@ func (p *Panel) tick() {
 		return
 	}
 	p.reading = p.d.Monitor.Sample()
+	if p.reading.CPU >= 0 {
+		p.cpuHist = append(p.cpuHist, p.reading.CPU)
+		if len(p.cpuHist) > sparkLen {
+			p.cpuHist = p.cpuHist[len(p.cpuHist)-sparkLen:]
+		}
+	}
 	if p.reading.Storm && !p.stormWarned {
 		p.stormWarned = true
 		top := sysmon.TopCommands(p.d.Monitor.FirstPID(), 1)
@@ -325,6 +336,9 @@ func (p *Panel) reconcile() {
 		p.refreshStatus(i, false)
 	}
 	p.rebuildItems(key)
+	for i := range p.agents {
+		p.syncTitle(i)
+	}
 
 	// State files of sessions that no longer exist.
 	if entries, err := os.ReadDir(p.d.Paths.State); err == nil {
@@ -426,6 +440,7 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 			for i := range p.agents {
 				if p.isOpencode(p.agents[i]) {
 					p.refreshStatus(i, true)
+					p.syncTitle(i)
 				}
 			}
 		}
@@ -446,6 +461,7 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 		for i := range p.agents {
 			if p.agents[i].ID == name {
 				p.refreshStatus(i, true)
+				p.syncTitle(i)
 			}
 		}
 	}
@@ -459,4 +475,25 @@ func (p *Panel) flash(s string) {
 func (p *Panel) saveMetrics() {
 	data, _ := json.Marshal(p.metrics)
 	_ = os.WriteFile(p.d.Paths.Metrics(), data, 0o644)
+}
+
+// syncTitle keeps the title tmux draws above a session up to date. It costs
+// one tmux call, and only when the text actually changes.
+func (p *Panel) syncTitle(i int) {
+	a := p.agents[i]
+	icon, color, word := statusStyle(a.Status)
+	esc := func(s string) string { return strings.ReplaceAll(s, "#", "##") }
+	var parts []string
+	if pr, ok := p.profileOf(a.Profile); ok && !autoName(a.Name, a.Dir) {
+		parts = append(parts, pr.Display())
+	}
+	parts = append(parts, p.d.Paths.Pretty(a.Dir), i18n.T(word))
+	title := fmt.Sprintf(" #[fg=%s]%s#[default] #[bold]%s#[nobold]#[fg=#6c717c] · %s ",
+		tmuxColor(color), icon, esc(p.sessionText(a)), esc(strings.Join(parts, " · ")))
+	if p.titles[a.Pane] == title {
+		return
+	}
+	if err := p.d.Tmux.SetPaneOptions(a.Pane, "@argus_title", title); err == nil {
+		p.titles[a.Pane] = title
+	}
 }

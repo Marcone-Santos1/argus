@@ -16,29 +16,13 @@ import (
 )
 
 const (
-	reset   = "\x1b[0m"
-	bold    = "\x1b[1m"
-	dim     = "\x1b[2m"
-	reverse = "\x1b[7m"
-	red     = "\x1b[1;31m"
-	yellow  = "\x1b[1;33m"
-	cyan    = "\x1b[36m"
+	reset  = "\x1b[0m"
+	bold   = "\x1b[1m"
+	dim    = "\x1b[2m"
+	red    = "\x1b[1;31m"
+	yellow = "\x1b[1;33m"
+	cyan   = "\x1b[36m"
 )
-
-func statusIcon(s string) (string, string) {
-	switch s {
-	case status.Working:
-		return "●", "\x1b[33m"
-	case status.Waiting:
-		return "◐", "\x1b[1;35m"
-	case status.Done:
-		return "✓", "\x1b[32m"
-	case status.Ended:
-		return "✕", "\x1b[31m"
-	default:
-		return "○", "\x1b[2m"
-	}
-}
 
 func (p *Panel) resize() {
 	w, h, err := term.GetSize(int(os.Stdout.Fd()))
@@ -75,19 +59,26 @@ func (p *Panel) render() {
 	default:
 		lines = p.viewList()
 	}
-	b := p.out
-	b.WriteString("\x1b[H")
-	for i := 0; i < p.h; i++ {
-		if i > 0 {
-			b.WriteString("\r\n")
+	// Redraw only the lines that changed since the last frame.
+	if len(p.prevLines) != p.h {
+		p.prevLines = make([]string, p.h)
+		for i := range p.prevLines {
+			p.prevLines[i] = "\x00" // forces the first full draw
 		}
+	}
+	b := p.out
+	for i := 0; i < p.h; i++ {
+		l := ""
+		if i < len(lines) {
+			l = lines[i]
+		}
+		if l == p.prevLines[i] {
+			continue
+		}
+		p.prevLines[i] = l
 		// Clear the line before writing: clearing after would erase the last
 		// column (without autowrap the cursor stays on it).
-		b.WriteString("\x1b[2K")
-		if i < len(lines) {
-			b.WriteString(lines[i])
-		}
-		b.WriteString(reset)
+		fmt.Fprintf(b, "\x1b[%d;1H\x1b[2K%s%s", i+1, l, reset)
 	}
 	_ = b.Flush()
 
@@ -107,43 +98,79 @@ func (p *Panel) render() {
 	}
 }
 
+// Width of the CPU sparkline (one block per 2 s reading).
+const sparkLen = 8
+
 func (p *Panel) viewList() []string {
 	w := p.w
-	body := []string{bold + fit(" argus", w) + reset}
+	body := []string{p.header(w)}
 	if p.mode == modeFilter || p.listFilter != "" {
 		cursor := ""
 		if p.mode == modeFilter {
 			cursor = "█"
 		}
-		body = append(body, fit(" / "+p.listFilter+cursor, w))
+		body = append(body, line(w, "", sp(" / ", cAccent), sp(p.listFilter+cursor, "")))
 	}
 	if len(p.agents) == 0 && p.listFilter == "" {
-		body = append(body, dim+fit(i18n.T("list.empty1"), w)+reset, dim+fit(i18n.T("list.empty2"), w)+reset)
+		body = append(body, "", line(w, "", sp(i18n.T("list.empty1"), cQuiet)), line(w, "", sp(i18n.T("list.empty2"), cQuiet)))
 	}
 	focusLine := -1
 	now := time.Now()
-	dir := ""
 	num := 0
 	for idx, it := range p.items {
-		if it.dir != dir {
-			dir = it.dir
-			body = append(body, "", p.folderHeader(dir, w))
+		if idx == 0 || it.dir != p.items[idx-1].dir {
+			body = append(body, "", p.folderHeader(it.dir, w))
 		}
+		last := idx == len(p.items)-1 || p.items[idx+1].dir != it.dir
 		sel := idx == p.sel && p.mode != modeFilter
 		if idx == p.sel {
 			focusLine = len(body)
 		}
 		if it.agent >= 0 {
 			num++
-			body = append(body, p.agentRow(p.agents[it.agent], num, sel, now, w))
+			body = append(body, p.agentRow(p.agents[it.agent], num, sel, last, now, w))
 		} else {
-			body = append(body, p.recentRow(it.entry, sel, now, w))
+			body = append(body, p.recentRow(it.entry, sel, last, now, w))
 		}
 	}
+	if p.hiddenFolders > 0 && p.listFilter == "" {
+		body = append(body, "", line(w, "", sp(i18n.T("list.more", p.hiddenFolders), cFaint)))
+	}
 	if len(p.items) == 0 && p.listFilter != "" {
-		body = append(body, "", dim+fit(i18n.T("list.nothing"), w)+reset)
+		body = append(body, "", line(w, "", sp(i18n.T("list.nothing"), cQuiet)))
 	}
 	return layout(body, p.footer(), p.h, max(focusLine, 0))
+}
+
+// header: the name on the left and, on the right, how many sessions are in
+// each state (only the states that have any).
+func (p *Panel) header(w int) string {
+	counts := map[string]int{}
+	for _, a := range p.agents {
+		counts[a.Status]++
+	}
+	var right []span
+	for _, st := range []string{status.Working, status.Waiting, status.Done} {
+		if counts[st] == 0 {
+			continue
+		}
+		icon, color, _ := statusStyle(st)
+		right = append(right, sp(icon+" "+fmt.Sprint(counts[st]), color), sp("  ", ""))
+	}
+	total := i18n.T("list.sessions", len(p.agents))
+	if len(p.agents) == 1 {
+		total = i18n.T("list.session")
+	}
+	right = append(right, sp("· "+total+" ", cQuiet))
+	rw := 0
+	for _, s := range right {
+		rw += width(s.text)
+	}
+	if rw+8 > w { // narrow: just the name
+		return line(w, "", sp(" argus", "\x1b[1m"+cAccent))
+	}
+	spans := append([]span{sp(" argus", "\x1b[1m"+cAccent), sp(strings.Repeat(" ", w-6-rw), "")}, right...)
+	return line(w, "", spans...)
 }
 
 func (p *Panel) footer() []string {
@@ -151,37 +178,35 @@ func (p *Panel) footer() []string {
 	var foot []string
 	switch {
 	case p.mode == modeConfirm:
-		foot = append(foot, yellow+fit(" "+p.confirmMsg, w)+reset)
+		foot = append(foot, line(w, "", sp(" "+p.confirmMsg, yellow)))
 	case p.mode == modeInput:
-		foot = append(foot, yellow+fit(" "+p.inputPrompt, w)+reset, fit(" > "+p.input+"█", w))
+		foot = append(foot, line(w, "", sp(" "+p.inputPrompt, yellow)), line(w, "", sp(" > "+p.input+"█", "")))
 	case p.msg != "":
-		foot = append(foot, cyan+fit(" "+p.msg, w)+reset)
+		foot = append(foot, line(w, "", sp(" "+p.msg, cyan)))
 	}
 	if p.reading.Storm {
-		foot = append(foot, red+fit(i18n.T("list.storm", p.reading.PerMinute), w)+reset)
+		foot = append(foot, line(w, "", sp(i18n.T("list.storm", p.reading.PerMinute), red)))
 	}
-	foot = append(foot, dim+strings.Repeat("─", w)+reset)
-	sess := i18n.T("list.sessions", len(p.agents))
-	if len(p.agents) == 1 {
-		sess = i18n.T("list.session")
-	}
-	stats := ""
+	foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
 	if p.reading.CPU >= 0 && p.reading.PerMinute >= 0 {
-		stats = i18n.T("list.stats", p.reading.CPU, p.reading.PerMinute)
+		foot = append(foot, line(w, "",
+			sp(" CPU ", cQuiet), sp(spark(p.cpuHist), loadColor(p.reading.CPU)),
+			sp(fmt.Sprintf(" %.0f%%", p.reading.CPU), ""),
+			sp("   "+i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", p.reading.PerMinute), "")))
 	}
-	foot = append(foot, fit(" "+stats+sess, w))
-	hints := tr("hint.enter", "hint.toggle", "hint.new", "hint.history", "hint.help", "hint.quit")
-	return append(foot, wrapHints(hints, w)...)
+	hints := tr("hint.enter", "hint.toggle", "hint.tab", "hint.new", "hint.help")
+	for _, h := range wrapHints(hints, w) {
+		foot = append(foot, line(w, "", sp(stripANSI(h), cFaint)))
+	}
+	return foot
 }
 
 func (p *Panel) folderHeader(dir string, w int) string {
-	name := filepath.Base(dir)
 	parent := p.d.Paths.Pretty(filepath.Dir(dir))
-	nameW := utf8.RuneCountInString(name)
-	if nameW+3 >= w {
-		return " " + bold + fit(name, w-1) + reset
+	if p.d.Paths.Pretty(dir) == "~" {
+		parent = "~"
 	}
-	return " " + bold + name + reset + dim + "  " + fit(parent, w-nameW-3) + reset
+	return line(w, "", sp(" "+filepath.Base(dir), cFolder), sp(" "+parent, cFaint))
 }
 
 // autoName reports whether a session still has the name Argus gave it: the
@@ -215,30 +240,56 @@ func (p *Panel) sessionText(a agent) string {
 	return a.Profile + " ?"
 }
 
-func (p *Panel) agentRow(a agent, num int, sel bool, now time.Time, w int) string {
-	text := p.sessionText(a)
-	if a.Worktree != "" {
-		text += " ⑂"
+func guide(last bool) string {
+	if last {
+		return "└"
 	}
-	icon, color := statusIcon(a.Status)
+	return "├"
+}
+
+// rowStart is the bar and tree guide every row begins with. The bar marks the
+// selection (blue) or a session waiting for you (amber).
+func rowStart(sel, waiting, last bool) (bg string, spans []span) {
+	bar := sp(" ", "")
+	switch {
+	case sel:
+		bg, bar = bgSel, sp("▌", cAccent)
+	case waiting:
+		bg, bar = bgWait, sp("▌", cAmber)
+	}
+	return bg, []span{bar, sp(" "+guide(last)+" ", cFaint)}
+}
+
+func (p *Panel) agentRow(a agent, num int, sel, last bool, now time.Time, w int) string {
+	icon, color, word := statusStyle(a.Status)
 	el := ""
 	if !a.Since.IsZero() {
 		el = status.Short(now.Sub(a.Since))
 	}
-	mark := "  "
-	if a.Displayed {
-		mark = "▶ "
+	right := i18n.T(word) + " " + el
+	if w < 44 { // narrow: no status word
+		right = el
+	}
+	text := p.sessionText(a)
+	if a.Worktree != "" {
+		text += " ⑂"
 	}
 	n := " "
 	if num <= 9 {
 		n = fmt.Sprint(num)
 	}
-	right := fmt.Sprintf(" %s %4s ", icon, el)
-	textW := w - 6 - utf8.RuneCountInString(right)
-	if sel {
-		return reverse + "  " + n + " " + mark + fit(text, textW) + " " + color + icon + reset + reverse + fmt.Sprintf(" %4s ", el) + reset
+	textStyle := ""
+	if a.Displayed {
+		textStyle = "\x1b[1m"
 	}
-	return "  " + dim + n + reset + " " + mark + fit(text, textW) + " " + color + icon + reset + fmt.Sprintf(" %4s ", el)
+	bg, spans := rowStart(sel, a.Status == status.Waiting, last)
+	used := 4 + 2 + 3 // start + icon + number
+	textW := max(w-used-width(right)-2, 1)
+	spans = append(spans,
+		sp(icon+" ", color), sp(n+"  ", cQuiet),
+		sp(fit(text, textW), textStyle), sp(" ", ""),
+		sp(right, color), sp(" ", ""))
+	return line(w, bg, spans...)
 }
 
 func (p *Panel) entryTag(e history.Entry) string {
@@ -251,13 +302,16 @@ func (p *Panel) entryTag(e history.Entry) string {
 	return "?"
 }
 
-func (p *Panel) recentRow(e history.Entry, sel bool, now time.Time, w int) string {
-	right := fmt.Sprintf(" %-3s %4s ", p.entryTag(e), status.Short(now.Sub(e.Updated)))
-	titleW := w - 6 - utf8.RuneCountInString(right)
+func (p *Panel) recentRow(e history.Entry, sel, last bool, now time.Time, w int) string {
+	right := fmt.Sprintf("%-3s %3s", p.entryTag(e), status.Short(now.Sub(e.Updated)))
+	bg, spans := rowStart(sel, false, last)
+	titleW := max(w-4-5-width(right)-2, 1)
+	titleStyle := cQuiet
 	if sel {
-		return reverse + "      " + fit(e.Title, titleW) + right + reset
+		titleStyle = ""
 	}
-	return "      " + fit(e.Title, titleW) + dim + right + reset
+	spans = append(spans, sp("↺    ", cFaint), sp(fit(e.Title, titleW), titleStyle), sp(" ", ""), sp(right, cFaint), sp(" ", ""))
+	return line(w, bg, spans...)
 }
 
 func wrapHints(hints []string, w int) []string {
@@ -311,7 +365,7 @@ func (p *Panel) viewPicker() []string {
 		}
 		line := fit(" "+mark+pr.Rel, w)
 		if i == p.pickSel {
-			line = reverse + line + reset
+			line = bgSel + line + reset
 		}
 		body = append(body, line)
 	}
@@ -335,7 +389,7 @@ func (p *Panel) viewProfiles() []string {
 	for i, pr := range p.profChoices {
 		text := fmt.Sprintf(" %d  %-16s %s", i+1, pr.Name, pr.Group)
 		if i == p.profSel {
-			body = append(body, reverse+fit(text, w)+reset)
+			body = append(body, bgSel+fit(text, w)+reset)
 		} else {
 			body = append(body, fit(text, w))
 		}
@@ -364,7 +418,7 @@ func (p *Panel) viewHistory() []string {
 			fit(p.entryTag(e), tagW) + fmt.Sprintf("%*s ", ageW, status.Short(now.Sub(e.Updated)))
 		switch {
 		case i == p.histSel:
-			line = reverse + fit(line, w) + reset
+			line = bgSel + fit(line, w) + reset
 		case e.Profile == "":
 			line = dim + fit(line, w) + reset
 		}
