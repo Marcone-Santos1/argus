@@ -57,6 +57,8 @@ var messages = map[string][2]string{
 	"help.history":   {"all past conversations, searchable", "todas as conversas antigas, com busca"},
 	"help.filter":    {"filter the list", "filtra a lista"},
 	"help.rename":    {"rename the session", "renomeia a sessão"},
+	"help.width":     {"narrow / widen the list (or drag the border)", "estreita / alarga a lista (ou arraste a borda)"},
+	"help.click":     {"select; double click enters or resumes", "seleciona; clique duplo entra ou retoma"},
 	"help.answer":    {"answer a session waiting for you, from the list", "responde uma sessão que espera você, daqui da lista"},
 	"help.account":   {"switch the session to another account (same conversation)", "troca a conta da sessão (mesma conversa)"},
 	"help.hide":      {"hide the session on the right (it keeps running)", "esconde a sessão da direita (ela continua rodando)"},

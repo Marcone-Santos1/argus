@@ -2,6 +2,7 @@ package ui
 
 import (
 	"os"
+	"strings"
 	"unicode/utf8"
 
 	"github.com/Marcone-Santos1/argus/internal/i18n"
@@ -9,6 +10,10 @@ import (
 )
 
 func (p *Panel) handleKey(k string) {
+	if strings.HasPrefix(k, "mouse:") {
+		p.handleMouse(k)
+		return
+	}
 	switch p.mode {
 	case modeConfirm:
 		fn, no := p.confirmFn, p.confirmNo
@@ -240,6 +245,10 @@ func (p *Panel) keyList(k string) {
 			p.focusSession()
 			_, _ = p.d.Tmux.Run("resize-pane", "-Z", "-t", p.displayPane)
 		}
+	case ">":
+		p.growPanel(stepW)
+	case "<":
+		p.growPanel(-stepW)
 	case "q":
 		p.swapC = nil
 		_, _ = p.d.Tmux.Run("detach-client", "-s", tmux.Session)
@@ -284,11 +293,26 @@ func parseKeys(b []byte) []string {
 					j++
 				}
 				if j < len(b) {
+					if b[i+2] == '<' && (b[j] == 'M' || b[j] == 'm') {
+						if mk := mouseKey(string(b[i+2:j]), b[j]); mk != "" {
+							ks = append(ks, mk)
+						}
+						i = j + 1
+						continue
+					}
 					switch b[j] {
 					case 'A':
 						ks = append(ks, "up")
 					case 'B':
 						ks = append(ks, "down")
+					case 'C':
+						if j == i+2 { // plain arrow, not ctrl/alt+arrow
+							ks = append(ks, "right")
+						}
+					case 'D':
+						if j == i+2 { // plain arrow, not ctrl/alt+arrow
+							ks = append(ks, "left")
+						}
 					case 'Z':
 						ks = append(ks, "shift-tab")
 					}

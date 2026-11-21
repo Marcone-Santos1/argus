@@ -53,6 +53,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
 | `Enter` | entra na sessão, abre a pasta, ou retoma a conversa antiga |
 | `→ ←` | abre / fecha uma pasta de conversas antigas |
+| `< >` | estreita / alarga a lista (ou arraste a borda; a largura fica guardada) |
+| clique | seleciona (a sessão aparece à direita); clique duplo entra, ou retoma a conversa |
 | `Ctrl+\` | alterna entre a lista e a sessão (de qualquer lugar) |
 | `Tab` | pula para a próxima sessão esperando você |
 | `n` | nova sessão: projeto e perfil |

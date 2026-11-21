@@ -54,6 +54,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `↑` `↓` | select; an open session shows on the right |
 | `Enter` | enter the session, open a folder, or resume the past conversation |
 | `→ ←` | open / close a folder of past conversations |
+| `< >` | narrow / widen the list (or drag the border; the width is remembered) |
+| click | selects (a session shows on the right); double click enters, or resumes a conversation |
 | `Ctrl+\` | switch between the list and the session (from anywhere) |
 | `Tab` | jump to the next session waiting for you |
 | `n` | new session: project and profile |

@@ -128,9 +128,13 @@ type Panel struct {
 	msg      string
 	msgUntil time.Time
 
-	w, h int
-	out  *bufio.Writer
-	quit bool
+	w, h       int
+	widthDirty bool  // the panel was resized by hand; save the width on the next tick
+	rowTarget  []int // per screen line, what a click there selects (-1 = nothing)
+	lastClick  time.Time
+	lastRow    int
+	out        *bufio.Writer
+	quit       bool
 
 	swapTimer *time.Timer
 	swapC     <-chan time.Time
@@ -191,9 +195,11 @@ func (p *Panel) Run() error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprint(os.Stdout, "\x1b[?1049h\x1b[?25l\x1b[?7l")
+	// Mouse: clicks and the wheel (SGR encoding); tmux forwards them only
+	// because the panel asks for them.
+	fmt.Fprint(os.Stdout, "\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?1000h\x1b[?1006h")
 	defer func() {
-		fmt.Fprint(os.Stdout, "\x1b[?7h\x1b[?25h\x1b[?1049l")
+		fmt.Fprint(os.Stdout, "\x1b[?1006l\x1b[?1000l\x1b[?7h\x1b[?25h\x1b[?1049l")
 		_ = term.Restore(int(os.Stdin.Fd()), old)
 	}()
 
@@ -247,6 +253,7 @@ func (p *Panel) Run() error {
 			p.setRecent(r)
 		case <-winch:
 			p.resize()
+			p.noteWidth()
 		case <-p.swapC:
 			p.swapC = nil
 			p.showSelected()
@@ -259,6 +266,11 @@ func (p *Panel) Run() error {
 }
 
 func (p *Panel) tick() {
+	if p.widthDirty {
+		p.widthDirty = false
+		p.prefs.PanelWidth = p.w
+		_ = p.prefs.Save()
+	}
 	if p.msg != "" && time.Now().After(p.msgUntil) {
 		p.msg = ""
 	}
@@ -328,10 +340,12 @@ func (p *Panel) reconcile() {
 			placeholders = placeholders[1:]
 			if _, err := p.d.Tmux.Run("join-pane", "-h", "-d", "-l", "70%", "-s", ph.ID, "-t", p.d.Self); err == nil {
 				p.displayPane = ph.ID
+				p.applyWidth()
 			}
 		} else if id, err := p.d.Tmux.Run("split-window", "-h", "-d", "-l", "70%", "-t", p.d.Self, "-P", "-F", "#{pane_id}", "true"); err == nil {
 			_ = p.d.Tmux.SetPaneOptions(id, "@argus_role", tmux.RolePlaceholder)
 			p.displayPane = id
+			p.applyWidth()
 		}
 	} else {
 		p.displayPane = inMain[0].ID

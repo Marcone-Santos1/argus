@@ -260,7 +260,9 @@ type Prefs struct {
 	// transcript, so without this a switched conversation would reopen in
 	// its original account.
 	Sessions map[string]string `json:"sessions,omitempty"`
-	path     string
+	// PanelWidth is the list's width in columns, as last dragged (0 = default).
+	PanelWidth int `json:"panel_width,omitempty"`
+	path       string
 }
 
 // LoadPrefs reads the preferences; a missing or invalid file yields empty ones.

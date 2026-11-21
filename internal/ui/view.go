@@ -128,7 +128,14 @@ func (p *Panel) viewList() []string {
 		}
 	}
 	p.folderW = min(p.folderW, max(w/3, 8))
+	var targets []int
+	mark := func(t int) {
+		for len(targets) < len(body) {
+			targets = append(targets, t)
+		}
+	}
 	for idx, it := range p.items {
+		mark(-1)
 		sel := idx == p.sel && p.mode != modeFilter
 		if it.agent < 0 && !recents {
 			recents = true
@@ -150,6 +157,7 @@ func (p *Panel) viewList() []string {
 		default:
 			body = append(body, p.entryRow(it.entry, sel, now, w))
 		}
+		mark(idx)
 	}
 	if p.hiddenFolders > 0 && p.listFilter == "" {
 		body = append(body, line(w, "", sp(i18n.T("list.more", p.hiddenFolders), cFaint)))
@@ -158,7 +166,7 @@ func (p *Panel) viewList() []string {
 		body = append(body, line(w, "", sp(i18n.T("list.nothing"), cQuiet)))
 	}
 	p.syncPanelTitle()
-	return layout(body, p.footer(), p.h, max(focusLine, 0))
+	return p.layoutClick(body, targets, p.footer(), max(focusLine, 0))
 }
 
 // section is a part's heading: a small label and a rule to the edge.
@@ -409,16 +417,48 @@ func wrapHints(hints []string, w int) []string {
 // layout fits body and footer to the screen height, scrolling the body so the
 // focus line stays visible.
 func layout(body, foot []string, h, focus int) []string {
+	out, _ := layoutAt(body, foot, h, focus)
+	return out
+}
+
+// layoutAt is layout that also tells the first body line shown.
+func layoutAt(body, foot []string, h, focus int) ([]string, int) {
 	room := max(h-len(foot), 1)
+	start := 0
 	if len(body) > room {
-		start := min(max(focus-room/2, 0), len(body)-room)
+		start = min(max(focus-room/2, 0), len(body)-room)
 		body = body[start : start+room]
 	}
 	out := append([]string{}, body...)
 	for len(out) < room {
 		out = append(out, "")
 	}
-	return append(out, foot...)
+	return append(out, foot...), start
+}
+
+// layoutClick is layout that also records, for each screen line, what a
+// click there selects: targets[i] for body line i (-1 or missing: nothing).
+func (p *Panel) layoutClick(body []string, targets []int, foot []string, focus int) []string {
+	out, start := layoutAt(body, foot, p.h, focus)
+	p.rowTarget = p.rowTarget[:0]
+	room := len(out) - len(foot)
+	for r := range out {
+		t := -1
+		if i := start + r; r < room && i < len(targets) {
+			t = targets[i]
+		}
+		p.rowTarget = append(p.rowTarget, t)
+	}
+	return out
+}
+
+// listTargets: body line first+i selects choice i, for n choices.
+func listTargets(first, n int) []int {
+	t := make([]int, first+n)
+	for i := range t {
+		t[i] = i - first
+	}
+	return t
 }
 
 func (p *Panel) viewPicker() []string {
@@ -443,7 +483,7 @@ func (p *Panel) viewPicker() []string {
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
 	foot = append(foot, wrapHints(tr("hint.type", "hint.pick", "hint.ok", "hint.cancel", "hint.used"), w)...)
-	return layout(body, foot, p.h, p.pickSel+4)
+	return p.layoutClick(body, listTargets(4, len(p.filtered)), foot, p.pickSel+4)
 }
 
 func (p *Panel) viewProfiles() []string {
@@ -468,7 +508,7 @@ func (p *Panel) viewProfiles() []string {
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
 	foot = append(foot, wrapHints(tr("hint.pick", "hint.open", "hint.back"), w)...)
-	return layout(body, foot, p.h, p.profSel+3)
+	return p.layoutClick(body, listTargets(3, len(p.profChoices)), foot, p.profSel+3)
 }
 
 func (p *Panel) viewHistory() []string {
@@ -498,7 +538,7 @@ func (p *Panel) viewHistory() []string {
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
 	foot = append(foot, wrapHints(tr("hint.typeHistory", "hint.pick", "hint.resume", "hint.back"), w)...)
-	return layout(body, foot, p.h, p.histSel+4)
+	return p.layoutClick(body, listTargets(4, len(p.histShown)), foot, p.histSel+4)
 }
 
 // tr translates a list of message keys.
@@ -524,6 +564,8 @@ var helpKeys = []struct{ key, msg string }{
 	{"r", "help.rename"},
 	{"a", "help.account"},
 	{"y", "help.answer"},
+	{"< >", "help.width"},
+	{"click", "help.click"},
 	{"Esc", "help.hide"},
 	{"x", "help.close"},
 	{"z", "help.zoom"},
