@@ -104,7 +104,9 @@ func HookScript(stateDir, shell string) string {
 // TmuxConf is the tmux configuration ready for a state directory.
 func TmuxConf(stateDir string) string {
 	s := strings.ReplaceAll(tmuxConf, "__STATE_DIR__", stateDir)
-	return strings.ReplaceAll(s, "__PLACEHOLDER__", strings.ReplaceAll(i18n.T("tmux.placeholder"), `"`, `'`))
+	safe := func(k string) string { return strings.ReplaceAll(i18n.T(k), `"`, `'`) }
+	s = strings.ReplaceAll(s, "__PLACEHOLDER__", safe("tmux.placeholder"))
+	return strings.ReplaceAll(s, "__COPIED__", safe("tmux.copied"))
 }
 
 // OpencodePlugin is the plugin ready for an opencode state directory.

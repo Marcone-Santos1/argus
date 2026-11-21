@@ -98,6 +98,7 @@ var messages = map[string][2]string{
 	"wt.dirty":     {"the worktree has uncommitted changes; it was kept", "a worktree tem mudanças sem commit; ela foi mantida"},
 
 	// tmux.
+	"tmux.copied":      {"✓ Copied", "✓ Copiado"},
 	"tmux.placeholder": {"  No session open here. Pick one in the list or press n.", "  Nenhuma sessão aberta aqui. Escolha uma na lista ou aperte n."},
 
 	// Command line.
