@@ -224,9 +224,7 @@ func (p *Panel) footer() []string {
 		foot = append(foot, line(w, "", sp(i18n.T("list.storm", p.reading.PerMinute), red)))
 	}
 	foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
-	if stats := p.statsSpans(); stats != nil {
-		foot = append(foot, line(w, "", stats...))
-	}
+	foot = append(foot, p.statsLines(w)...)
 	for _, h := range wrapHints(tr(p.hintKeys()...), w) {
 		foot = append(foot, line(w, "", sp(stripANSI(h), cFaint)))
 	}
@@ -583,12 +581,13 @@ func (p *Panel) viewHelp() []string {
 	return layout(body, foot, p.h, 0)
 }
 
-// statsSpans is the footer's machine line: CPU, memory and processes created
-// per minute. Colors only show up when something is high; the CPU sparkline
+// statsLines is the footer's machine part: CPU, memory and processes created
+// per minute, on one line when they fit and wrapped (never cut) when the list
+// is narrow. Colors only show up when something is high; the CPU sparkline
 // only when there was load in the last 16 s.
-func (p *Panel) statsSpans() []span {
+func (p *Panel) statsLines(w int) []string {
 	r := p.reading
-	var out []span
+	var groups [][]span
 	calm := func(color string) string {
 		if color == cDone {
 			return ""
@@ -596,11 +595,11 @@ func (p *Panel) statsSpans() []span {
 		return color
 	}
 	if r.CPU >= 0 {
-		out = append(out, sp(" CPU ", cQuiet))
+		g := []span{sp("CPU ", cQuiet)}
 		if peak(p.cpuHist) >= 25 {
-			out = append(out, sp(spark(p.cpuHist)+" ", loadColor(r.CPU)))
+			g = append(g, sp(spark(p.cpuHist)+" ", loadColor(r.CPU)))
 		}
-		out = append(out, sp(fmt.Sprintf("%.0f%%", r.CPU), calm(loadColor(r.CPU))))
+		groups = append(groups, append(g, sp(fmt.Sprintf("%.0f%%", r.CPU), calm(loadColor(r.CPU)))))
 	}
 	if m := r.MemPercent(); m >= 0 {
 		const cells = 6
@@ -609,11 +608,33 @@ func (p *Panel) statsSpans() []span {
 		if c := memColor(m); c != cDone {
 			barColor = c
 		}
-		out = append(out, sp("   Mem ", cQuiet), sp(gb(r.MemUsed)+"/"+gb(r.MemTotal)+" GB ", calm(memColor(m))),
-			sp(strings.Repeat("━", full), barColor), sp(strings.Repeat("━", cells-full), cFaint))
+		groups = append(groups, []span{sp("Mem ", cQuiet), sp(gb(r.MemUsed)+"/"+gb(r.MemTotal)+" GB ", calm(memColor(m))),
+			sp(strings.Repeat("━", full), barColor), sp(strings.Repeat("━", cells-full), cFaint)})
 	}
 	if r.PerMinute >= 0 {
-		out = append(out, sp("   "+i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", r.PerMinute), ""))
+		groups = append(groups, []span{sp(i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", r.PerMinute), "")})
+	}
+	var out []string
+	var cur []span
+	curW := 0
+	for _, g := range groups {
+		gw := 0
+		for _, s := range g {
+			gw += width(s.text)
+		}
+		sep := sp("   ", "")
+		if cur == nil {
+			sep = sp(" ", "")
+		}
+		if cur != nil && curW+3+gw > w {
+			out = append(out, line(w, "", cur...))
+			cur, curW, sep = nil, 0, sp(" ", "")
+		}
+		cur = append(append(cur, sep), g...)
+		curW += width(sep.text) + gw
+	}
+	if cur != nil {
+		out = append(out, line(w, "", cur...))
 	}
 	return out
 }

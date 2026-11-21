@@ -8,6 +8,7 @@ import (
 
 	"github.com/Marcone-Santos1/argus/internal/history"
 	"github.com/Marcone-Santos1/argus/internal/status"
+	"github.com/Marcone-Santos1/argus/internal/sysmon"
 )
 
 var ansi = regexp.MustCompile(`\x1b\[[0-9;]*m`)
@@ -111,5 +112,27 @@ func TestPromptLinesFit(t *testing.T) {
 	got := visible(strings.Join(p.promptLines(pr, 80), "\n"))
 	if !strings.Contains(got, "1 Yes") || !strings.Contains(got, "3 No") {
 		t.Fatalf("options in the preview: %q", got)
+	}
+}
+
+func TestStatsWrapInsteadOfCutting(t *testing.T) {
+	p := testPanel(t)
+	p.reading = sysmon.Reading{CPU: 34, MemUsed: 12 << 30, MemTotal: 16 << 30, PerMinute: 49892}
+	p.cpuHist = []float64{30, 40, 34}
+	for _, w := range []int{30, 45, 120} {
+		all := ""
+		lines := p.statsLines(w)
+		for _, l := range lines {
+			if width(visible(l)) != w {
+				t.Fatalf("w=%d: %q", w, visible(l))
+			}
+			all += visible(l)
+		}
+		if !strings.Contains(all, "49892") || strings.Contains(all, "…") {
+			t.Fatalf("w=%d: proc/min cut: %q", w, all)
+		}
+		if w == 120 && len(lines) != 1 {
+			t.Fatalf("wide: one line, got %d", len(lines))
+		}
 	}
 }
