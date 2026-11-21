@@ -90,3 +90,23 @@ func TestIsTemp(t *testing.T) {
 		}
 	}
 }
+
+func TestPromptLinesFit(t *testing.T) {
+	p := testPanel(t)
+	pr := prompt{Context: strings.Repeat("touch x ", 30), Question: "Do you want to proceed?",
+		Options: []string{"Yes", "Yes, and don't ask again for these commands", "No"}, Numbered: true}
+	p.agents = []agent{{ID: "a1", Name: "api", Dir: "/p/api", Status: status.Waiting}}
+	p.prompts["a1"] = pr
+	p.answering = "a1"
+	for _, w := range []int{30, 62, 120} {
+		for _, l := range append(p.promptLines(pr, false, w), p.answerLines(w)...) {
+			if width(visible(l)) != w {
+				t.Fatalf("w=%d: %d columns: %q", w, width(visible(l)), visible(l))
+			}
+		}
+	}
+	got := visible(strings.Join(p.promptLines(pr, true, 80), "\n"))
+	if !strings.Contains(got, "1 Yes") || !strings.Contains(got, "3 No") {
+		t.Fatalf("options in the preview: %q", got)
+	}
+}

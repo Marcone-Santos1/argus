@@ -3,7 +3,6 @@ package ui
 import (
 	"crypto/rand"
 	"encoding/hex"
-	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +12,6 @@ import (
 	"github.com/Marcone-Santos1/argus/internal/history"
 	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/status"
-	"github.com/Marcone-Santos1/argus/internal/tmux"
 	"github.com/Marcone-Santos1/argus/internal/worktree"
 )
 
@@ -282,39 +280,12 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''
 func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Entry, wtRepo string) {
 	p.closePicker()
 	p.worktreeOf = ""
-	session := ""
-	if resume != nil {
-		if !history.SafeID(resume.ID) {
-			p.flash(i18n.T("msg.badID"))
-			return
-		}
-		session = resume.ID
-	}
-	id := newID()
-	name := filepath.Base(dir)
-	taken := map[string]bool{}
-	for _, a := range p.agents {
-		taken[a.Name] = true
-	}
-	for n := 2; taken[name]; n++ {
-		name = fmt.Sprintf("%s %d", filepath.Base(dir), n)
-	}
-	_ = status.Write(p.d.Paths.Status(id), status.Idle)
-
-	env, cmd := p.launch(id, prof, resume)
-	args := []string{"new-window", "-d", "-t", tmux.Session + ":", "-n", id, "-c", dir}
-	args = append(args, env...)
-	args = append(args, "-P", "-F", "#{pane_id}")
-	paneID, err := p.d.Tmux.Run(append(args, cmd...)...)
+	id, err := p.spawn(dir, prof, resume, wtRepo, "")
 	if err != nil {
 		p.flash(err.Error())
-		return
-	}
-	if err := p.d.Tmux.SetPaneOptions(paneID,
-		"@argus_role", tmux.RoleAgent, "@argus_id", id, "@argus_profile", prof.Name,
-		"@argus_dir", dir, "@argus_name", name, "@argus_created", fmt.Sprint(time.Now().UnixNano()),
-		"@argus_session", session, "@argus_worktree", wtRepo, "remain-on-exit", "off"); err != nil {
-		p.flash(err.Error())
+		if id == "" {
+			return
+		}
 	}
 	prefDir := dir
 	if wtRepo != "" {

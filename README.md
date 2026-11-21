@@ -61,6 +61,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `/` | filter the list |
 | `r` | rename the session |
 | `a` | switch the session to another account (e.g. personal → work), keeping the conversation |
+| `y` | answer a session waiting for you right from the list: its question and options show under it |
 | `?` | help: every key |
 | `Esc` | hide the session on the right without closing it (or clear the filter) |
 | `x` | close the session (and offer to delete its worktree) |
@@ -73,6 +74,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 Each session row shows its profile's text, `claude per` by default. Set `display = "Claude personal"` on a profile to change it for every session of that profile, or press `r` on a session to give just that one a name (empty brings the profile's text back).
 
 `~/.config/argus/config.toml`: project folders, profiles, per-folder profile rules, the session limit and which status changes notify you (`notify = ["waiting", "done"]`).
+
+If the machine restarts or the tmux server dies, the next `argus` offers to reopen the sessions that were open, each resuming its conversation in its account.
 
 ## How it works
 

@@ -60,6 +60,7 @@ const (
 	modeFilter
 	modeInput
 	modeHelp
+	modeAnswer
 )
 
 // Panel is the panel state.
@@ -84,6 +85,7 @@ type Panel struct {
 	profSel    int
 	confirmMsg string
 	confirmFn  func()
+	confirmNo  func() // run when the confirmation is declined
 
 	histAll     []history.Entry
 	histShown   []history.Entry
@@ -93,6 +95,13 @@ type Panel struct {
 	worktreeOf  string // repository when creating a session in a worktree
 
 	switching string // session being moved to another account (key a)
+
+	restoreOffer []snapEntry       // sessions offered for reopening after a restart
+	lastSnap     []byte            // last snapshot written
+	snapReady    bool              // the restore decision was made; the snapshot may be written
+	prompts      map[string]prompt // what each waiting session asks
+	captureC     chan string       // waiting sessions whose screen should be read
+	answering    string            // session being answered (key y)
 
 	inputPrompt string
 	input       string
@@ -157,6 +166,7 @@ func New(d Deps) *Panel {
 	return &Panel{
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
+		prompts: map[string]prompt{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
@@ -205,6 +215,7 @@ func (p *Panel) Run() error {
 	p.resize()
 	p.oc = status.ReadOpencode(p.d.Paths.Opencode())
 	p.reconcile()
+	p.offerRestore()
 	p.render()
 	p.refreshRecent()
 	if p.d.Monitor != nil {
@@ -226,6 +237,8 @@ func (p *Panel) Run() error {
 		case <-watcher.Errors:
 		case <-ticker.C:
 			p.tick()
+		case id := <-p.captureC:
+			p.capturePrompt(id)
 		case r := <-p.recentC:
 			p.recentLoading = false
 			p.setRecent(r)
@@ -340,6 +353,7 @@ func (p *Panel) reconcile() {
 	for i := range p.agents {
 		p.syncTitle(i)
 	}
+	p.saveSnapshot()
 
 	// State files of sessions that no longer exist.
 	if entries, err := os.ReadDir(p.d.Paths.State); err == nil {
@@ -377,6 +391,11 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	prev, seen := p.lastState[a.ID]
 	a.Status, a.Since = st, since
 	p.lastState[a.ID] = st
+	if st == status.Waiting && (prev != st || !seen) {
+		p.capturePromptSoon(a.ID)
+	} else if st != status.Waiting {
+		delete(p.prompts, a.ID)
+	}
 	if notify && seen && prev != st && p.d.Config.ShouldNotify(st) && !p.focusedOn(*a) {
 		title := "Argus: " + a.Name
 		body := map[string]string{status.Waiting: i18n.T("notify.waiting"), status.Done: i18n.T("notify.done")}[st]

@@ -128,7 +128,11 @@ func (p *Panel) viewList() []string {
 		}
 		if it.agent >= 0 {
 			num++
-			body = append(body, p.agentRow(p.agents[it.agent], num, sel, last, now, w))
+			a := p.agents[it.agent]
+			body = append(body, p.agentRow(a, num, sel, last, now, w))
+			if pr, ok := p.prompts[a.ID]; ok && a.Status == status.Waiting {
+				body = append(body, p.promptLines(pr, last, w)...)
+			}
 		} else {
 			body = append(body, p.recentRow(it.entry, sel, last, now, w))
 		}
@@ -179,6 +183,8 @@ func (p *Panel) footer() []string {
 	switch {
 	case p.mode == modeConfirm:
 		foot = append(foot, line(w, "", sp(" "+p.confirmMsg, yellow)))
+	case p.mode == modeAnswer:
+		foot = append(foot, p.answerLines(w)...)
 	case p.mode == modeInput:
 		foot = append(foot, line(w, "", sp(" "+p.inputPrompt, yellow)), line(w, "", sp(" > "+p.input+"█", "")))
 	case p.msg != "":
@@ -448,6 +454,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"/", "help.filter"},
 	{"r", "help.rename"},
 	{"a", "help.account"},
+	{"y", "help.answer"},
 	{"Esc", "help.hide"},
 	{"x", "help.close"},
 	{"z", "help.zoom"},
@@ -490,4 +497,57 @@ func gb(b uint64) string {
 		return fmt.Sprintf("%.0f", v)
 	}
 	return fmt.Sprintf("%.1f", v)
+}
+
+// promptLines shows, under a session waiting for you, what it asks: the
+// context (the command) and the options, with "y" to answer from here.
+func (p *Panel) promptLines(pr prompt, last bool, w int) []string {
+	rail := "│"
+	if last {
+		rail = " "
+	}
+	lead := []span{sp(" ", ""), sp(" "+rail+"     ", cFaint)}
+	var out []string
+	if text := pr.Context; text != "" || pr.Question != "" {
+		if text == "" {
+			text = pr.Question
+		}
+		out = append(out, line(w, bgWait, append(lead, sp(text, cQuiet))...))
+	}
+	var opts []string
+	for i, o := range pr.Options {
+		opts = append(opts, fmt.Sprintf("%d %s", i+1, short(o, 16)))
+	}
+	hint := i18n.T("prompt.hint")
+	optW := max(w-width(" "+rail+"     ")-1-width(hint)-2, 8)
+	out = append(out, line(w, bgWait, append(lead,
+		sp(fit(strings.Join(opts, " · "), optW), cWaiting), sp("  ", ""), sp(hint, cAccent))...))
+	return out
+}
+
+// answerLines is the footer while answering a session (key y).
+func (p *Panel) answerLines(w int) []string {
+	pr := p.prompts[p.answering]
+	name := ""
+	for _, a := range p.agents {
+		if a.ID == p.answering {
+			name = p.sessionText(a)
+		}
+	}
+	out := []string{line(w, "", sp(" "+i18n.T("prompt.title", name), yellow))}
+	if pr.Context != "" {
+		out = append(out, line(w, "", sp("   "+pr.Context, cQuiet)))
+	}
+	if pr.Question != "" {
+		out = append(out, line(w, "", sp("   "+pr.Question, "")))
+	}
+	for i, o := range pr.Options {
+		style := ""
+		mark := "  "
+		if i == pr.Selected {
+			style, mark = cAccent, "❯ "
+		}
+		out = append(out, line(w, "", sp("   "+mark, cAccent), sp(fmt.Sprintf("%d  %s", i+1, o), style)))
+	}
+	return append(out, line(w, "", sp(" "+i18n.T("prompt.keys"), cFaint)))
 }

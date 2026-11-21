@@ -60,6 +60,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `/` | filtra a lista |
 | `r` | renomeia a sessão |
 | `a` | troca a conta da sessão (ex.: pessoal → trabalho), mantendo a conversa |
+| `y` | responde uma sessão que espera você direto da lista: a pergunta e as opções aparecem embaixo dela |
 | `?` | ajuda: todas as teclas |
 | `Esc` | esconde a sessão da direita sem encerrar (ou limpa o filtro) |
 | `x` | encerra a sessão (e oferece apagar a worktree) |
@@ -72,6 +73,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 Cada sessão aparece na lista com o texto do perfil, `claude pes` por padrão. Para trocar esse texto em todas as sessões de um perfil, use `display = "Claude pessoal"` no perfil. Para dar nome a uma sessão só, aperte `r` nela; deixar o nome vazio volta para o texto do perfil.
 
 `~/.config/argus/config.toml`: pastas de projetos, perfis, regras de perfil por pasta, limite de sessões e quais mudanças de status geram aviso (`notify = ["waiting", "done"]`).
+
+Se o Mac reiniciar ou o servidor do tmux cair, o próximo `argus` oferece reabrir as sessões que estavam abertas, cada uma retomando a conversa na sua conta.
 
 ## Como funciona
 

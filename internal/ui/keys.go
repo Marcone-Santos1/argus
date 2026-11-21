@@ -11,13 +11,17 @@ import (
 func (p *Panel) handleKey(k string) {
 	switch p.mode {
 	case modeConfirm:
-		fn := p.confirmFn
-		p.mode, p.confirmFn = modeList, nil
+		fn, no := p.confirmFn, p.confirmNo
+		p.mode, p.confirmFn, p.confirmNo = modeList, nil, nil
 		if i18n.Yes(k) {
 			if fn != nil {
 				fn()
 			}
+		} else if no != nil {
+			no()
 		}
+	case modeAnswer:
+		p.keyAnswer(k)
 	case modeHelp:
 		p.closePicker() // any key closes the help (and leaves the zoom)
 	case modeInput:
@@ -193,6 +197,8 @@ func (p *Panel) keyList(k string) {
 			return
 		}
 		p.focusSession()
+	case "y":
+		p.startAnswer()
 	case "tab":
 		p.nextAttention()
 	case "n":

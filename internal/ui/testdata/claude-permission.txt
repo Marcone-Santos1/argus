@@ -1,0 +1,40 @@
+ ▐▛███▛█   Claude Code v2.1.330
+▝▜██████▀  Opus 5.5 · Claude Pro
+ ▝▝   ▝▝   /tmp/lab
+
+
+❯ execute o comando shell: touch arquivo-teste.txt                                                            
+
+⏺ Bash(touch arquivo-teste.txt && ls -l arquivo-teste.txt)  
+  ⎿  644  arquivo-teste.txt  0B
+
+⏺ Executei o comando. O arquivo vazio arquivo-teste.txt (0 bytes) foi criado no diretório de trabalho:
+  /tmp/lab/arquivo-teste.txt
+
+✻ Crunched for 6s · done 13:34                                            
+
+❯ execute o comando shell: touch outro-arquivo.txt                                                            
+
+⏺ Bash(touch outro-arquivo.txt && ls -l outro-arquivo.txt)                                                    
+  ⎿  Waiting…                                                                 
+
+──────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Bash command                                                                 
+ Tip: auto mode handles these prompts for you — choose "switch to auto mode" below
+ Create another empty file                                                                                    
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ touch outro-arquivo.txt && rtk ls -l outro-arquivo.txt                                                       
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ This command requires approval
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don't ask again for touch outro-arquivo.txt and rtk ls commands in
+      /tmp/lab
+   3. Yes, and switch to auto mode · auto mode handles these prompts for you
+   4. No
+
+ Esc to cancel · Tab to amend
+
+
+

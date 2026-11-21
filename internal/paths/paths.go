@@ -46,6 +46,7 @@ func (p Paths) Config() string       { return filepath.Join(p.Conf, "config.toml
 func (p Paths) Prefs() string        { return filepath.Join(p.State, "_prefs.json") }
 func (p Paths) HistoryCache() string { return filepath.Join(p.State, "_history.json") }
 func (p Paths) Metrics() string      { return filepath.Join(p.State, "_metrics") }
+func (p Paths) Snapshot() string     { return filepath.Join(p.State, "_sessions.json") }
 func (p Paths) TmuxEvent() string    { return filepath.Join(p.State, "_tmux") }
 
 // Opencode is where the opencode plugin writes each conversation's status.
