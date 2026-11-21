@@ -203,11 +203,15 @@ func (p *Panel) renameSelected() {
 	if a == nil {
 		return
 	}
-	pane := a.Pane
-	p.ask(i18n.T("msg.renamePrompt"), a.Name, func(name string) {
+	pane, dir := a.Pane, a.Dir
+	initial := a.Name
+	if autoName(a.Name, a.Dir) {
+		initial = ""
+	}
+	p.ask(i18n.T("msg.renamePrompt"), initial, func(name string) {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			return
+			name = filepath.Base(dir) // empty = back to the profile's text
 		}
 		if err := p.d.Tmux.SetPaneOptions(pane, "@argus_name", name); err != nil {
 			p.flash(err.Error())

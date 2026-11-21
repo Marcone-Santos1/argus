@@ -151,3 +151,27 @@ func TestProfilesFor(t *testing.T) {
 		t.Errorf("opencode profiles: %d", n)
 	}
 }
+
+func TestDisplay(t *testing.T) {
+	c, err := Parse(`
+[[profile]]
+name = "a"
+group = "WORK"
+command = "claude"
+
+[[profile]]
+name = "b"
+group = "WORK"
+command = "claude"
+display = "Claude da empresa"
+`, "/h")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := c.Profiles[0].Display(); got != "claude wor" {
+		t.Errorf("padrão: %q", got)
+	}
+	if got := c.Profiles[1].Display(); got != "Claude da empresa" {
+		t.Errorf("display do config: %q", got)
+	}
+}

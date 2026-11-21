@@ -184,17 +184,41 @@ func (p *Panel) folderHeader(dir string, w int) string {
 	return " " + bold + name + reset + dim + "  " + fit(parent, w-nameW-3) + reset
 }
 
-func (p *Panel) agentRow(a agent, num int, sel bool, now time.Time, w int) string {
-	label, tag := a.Profile, "?"
-	if pr, ok := p.profileOf(a.Profile); ok {
-		label, tag = pr.Label(), pr.Tag()
+// autoName reports whether a session still has the name Argus gave it: the
+// folder name, or "folder 2", "folder 3"... for more sessions in the folder.
+func autoName(name, dir string) bool {
+	base := filepath.Base(dir)
+	if name == "" || name == base {
+		return true
 	}
-	text := label + " " + tag
+	rest, ok := strings.CutPrefix(name, base+" ")
+	if !ok || rest == "" {
+		return false
+	}
+	for _, c := range rest {
+		if c < '0' || c > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// sessionText is what a session row shows: the name given with r, otherwise
+// the profile's display text ("claude per" or config.toml's "display").
+func (p *Panel) sessionText(a agent) string {
+	if !autoName(a.Name, a.Dir) {
+		return a.Name
+	}
+	if pr, ok := p.profileOf(a.Profile); ok {
+		return pr.Display()
+	}
+	return a.Profile + " ?"
+}
+
+func (p *Panel) agentRow(a agent, num int, sel bool, now time.Time, w int) string {
+	text := p.sessionText(a)
 	if a.Worktree != "" {
 		text += " ⑂"
-	}
-	if a.Name != filepath.Base(a.Dir) {
-		text += " · " + a.Name
 	}
 	icon, color := statusIcon(a.Status)
 	el := ""

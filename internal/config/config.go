@@ -17,7 +17,17 @@ type Profile struct {
 	Group   string            `toml:"group"`
 	Command string            `toml:"command"`
 	Env     map[string]string `toml:"env"`
-	TagText string            `toml:"tag"` // optional short label; derived from the group when empty
+	TagText string            `toml:"tag"`     // optional short label; derived from the group when empty
+	Show    string            `toml:"display"` // optional list text; "<program> <tag>" when empty
+}
+
+// Display is the text the list shows for the profile's sessions, e.g.
+// "claude per", or whatever "display" sets in config.toml.
+func (p Profile) Display() string {
+	if p.Show != "" {
+		return p.Show
+	}
+	return p.Label() + " " + p.Tag()
 }
 
 // Label is the program's short name (claude, opencode, gemini...).
@@ -96,7 +106,8 @@ notify = ["waiting", "done"]
 
 # Profiles: a command plus its environment. The first one is the default.
 # "group" is shown as a short tag in the list (its first three letters),
-# or set "tag" explicitly.
+# or set "tag" explicitly. "display" replaces the whole list text, which is
+# "<program> <tag>" by default (for example display = "Claude personal").
 [[profile]]
 name = "claude"
 group = "PERSONAL"

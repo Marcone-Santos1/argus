@@ -70,6 +70,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 
 ## Configuration
 
+Each session row shows its profile's text, `claude per` by default. Set `display = "Claude personal"` on a profile to change it for every session of that profile, or press `r` on a session to give just that one a name (empty brings the profile's text back).
+
 `~/.config/argus/config.toml`: project folders, profiles, per-folder profile rules, the session limit and which status changes notify you (`notify = ["waiting", "done"]`).
 
 ## How it works

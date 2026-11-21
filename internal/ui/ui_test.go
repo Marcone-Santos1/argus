@@ -238,3 +238,26 @@ func TestHelpScreen(t *testing.T) {
 		t.Fatal("the key that closes the help does nothing else")
 	}
 }
+
+func TestSessionText(t *testing.T) {
+	p := testPanel(t)
+	cases := []struct {
+		name, want string
+	}{
+		{"api", ""},            // nome automático: texto do perfil
+		{"api 2", ""},          // segunda sessão na pasta: também automático
+		{"api x", "api x"},     // renomeado
+		{"Pessoal", "Pessoal"}, // renomeado
+	}
+	pr := p.d.Config.Profiles[0]
+	for _, c := range cases {
+		got := p.sessionText(agent{Name: c.name, Dir: "/p/api", Profile: pr.Name})
+		want := c.want
+		if want == "" {
+			want = pr.Display()
+		}
+		if got != want {
+			t.Errorf("sessionText(%q) = %q, quer %q", c.name, got, want)
+		}
+	}
+}

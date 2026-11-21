@@ -69,6 +69,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 
 ## Configuração
 
+Cada sessão aparece na lista com o texto do perfil, `claude pes` por padrão. Para trocar esse texto em todas as sessões de um perfil, use `display = "Claude pessoal"` no perfil. Para dar nome a uma sessão só, aperte `r` nela; deixar o nome vazio volta para o texto do perfil.
+
 `~/.config/argus/config.toml`: pastas de projetos, perfis, regras de perfil por pasta, limite de sessões e quais mudanças de status geram aviso (`notify = ["waiting", "done"]`).
 
 ## Como funciona

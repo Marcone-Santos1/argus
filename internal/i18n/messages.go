@@ -70,7 +70,7 @@ var messages = map[string][2]string{
 	"msg.noAttention":     {"no session is waiting for you", "nenhuma sessão esperando você"},
 	"msg.pickRepo":        {"select a folder with a git repository", "selecione uma pasta com repositório git"},
 	"msg.branchPrompt":    {"Worktree branch in %s:", "Branch da worktree em %s:"},
-	"msg.renamePrompt":    {"New session name:", "Novo nome da sessão:"},
+	"msg.renamePrompt":    {"Name in the list (empty = profile's text):", "Nome na lista (vazio = texto do perfil):"},
 	"msg.limit":           {"There are already %d sessions (limit %d). Open one more? (y/n)", "Já são %d sessões (limite %d). Abrir mais uma? (s/n)"},
 	"msg.badID":           {"invalid conversation id", "id de conversa inválido"},
 	"msg.noOtherAccount":  {"no other profile for %s in config.toml", "nenhum outro perfil de %s no config.toml"},
