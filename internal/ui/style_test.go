@@ -38,17 +38,20 @@ func TestRowsFitTheWidth(t *testing.T) {
 		for _, st := range []string{status.Idle, status.Working, status.Waiting, status.Done} {
 			for _, sel := range []bool{false, true} {
 				a := agent{Name: "um nome bem comprido para cortar no meio", Dir: "/p/api", Profile: pr.Name, Status: st, Since: now.Add(-time.Minute)}
-				if got := visible(p.agentRow(a, 1, sel, false, now, w)); width(got) != w {
-					t.Fatalf("sessão w=%d %s sel=%v: %d colunas: %q", w, st, sel, width(got), got)
+				for _, l := range p.agentRows(a, 1, sel, now, w) {
+					if got := visible(l); width(got) != w {
+						t.Fatalf("sessão w=%d %s sel=%v: %d colunas: %q", w, st, sel, width(got), got)
+					}
 				}
 			}
 		}
 		e := history.Entry{Tool: "claude", Title: strings.Repeat("título ", 30), Updated: now.Add(-time.Hour)}
-		if got := visible(p.recentRow(e, true, true, now, w)); width(got) != w {
+		if got := visible(p.entryRow(e, true, now, w)); width(got) != w {
 			t.Fatalf("conversa w=%d: %d colunas", w, width(got))
 		}
-		if got := visible(p.header(w)); width(got) != w {
-			t.Fatalf("cabeçalho w=%d: %d colunas", w, width(got))
+		f := item{dir: "/p/um-projeto-de-nome-comprido", agent: -1, folder: true, count: 12, entry: e}
+		if got := visible(p.folderRow(f, true, now, w)); width(got) != w {
+			t.Fatalf("pasta w=%d: %d colunas: %q", w, width(got), got)
 		}
 	}
 }
@@ -56,7 +59,7 @@ func TestRowsFitTheWidth(t *testing.T) {
 func TestHeaderCountsByStatus(t *testing.T) {
 	p := testPanel(t)
 	p.agents = []agent{{Status: status.Working}, {Status: status.Working}, {Status: status.Waiting}}
-	h := visible(p.header(80))
+	h := p.panelTitle()
 	if !strings.Contains(h, "● 2") || !strings.Contains(h, "◐ 1") || strings.Contains(h, "✓") {
 		t.Fatalf("contadores: %q", h)
 	}
@@ -66,10 +69,10 @@ func TestWaitingRowStandsOut(t *testing.T) {
 	p := testPanel(t)
 	now := time.Now()
 	a := agent{Name: "api", Dir: "/p/api", Profile: p.d.Config.Profiles[0].Name, Status: status.Waiting}
-	if !strings.Contains(p.agentRow(a, 1, false, true, now, 60), bgWait) {
+	if !strings.Contains(p.agentRows(a, 1, false, now, 60)[0], bgWait) {
 		t.Fatal("sessão esperando você ganha fundo âmbar")
 	}
-	if !strings.Contains(p.agentRow(a, 1, true, true, now, 60), bgSel) {
+	if !strings.Contains(p.agentRows(a, 1, true, now, 60)[0], bgSel) {
 		t.Fatal("a seleção tem prioridade sobre o âmbar")
 	}
 }
@@ -99,13 +102,13 @@ func TestPromptLinesFit(t *testing.T) {
 	p.prompts["a1"] = pr
 	p.answering = "a1"
 	for _, w := range []int{30, 62, 120} {
-		for _, l := range append(p.promptLines(pr, false, w), p.answerLines(w)...) {
+		for _, l := range append(p.promptLines(pr, w), p.answerLines(w)...) {
 			if width(visible(l)) != w {
 				t.Fatalf("w=%d: %d columns: %q", w, width(visible(l)), visible(l))
 			}
 		}
 	}
-	got := visible(strings.Join(p.promptLines(pr, true, 80), "\n"))
+	got := visible(strings.Join(p.promptLines(pr, 80), "\n"))
 	if !strings.Contains(got, "1 Yes") || !strings.Contains(got, "3 No") {
 		t.Fatalf("options in the preview: %q", got)
 	}

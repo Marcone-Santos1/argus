@@ -193,10 +193,20 @@ func (p *Panel) keyList(k string) {
 		}
 	case "enter":
 		if p.sel >= 0 && p.sel < len(p.items) && p.items[p.sel].agent < 0 {
-			p.resumeEntry(p.items[p.sel].entry)
+			if p.items[p.sel].folder {
+				p.toggleFolder(nil)
+			} else {
+				p.resumeEntry(p.items[p.sel].entry)
+			}
 			return
 		}
 		p.focusSession()
+	case "right", "l":
+		yes := true
+		p.toggleFolder(&yes)
+	case "left":
+		no := false
+		p.toggleFolder(&no)
 	case "y":
 		p.startAnswer()
 	case "tab":

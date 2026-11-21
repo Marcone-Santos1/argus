@@ -349,7 +349,15 @@ func (p *Panel) refreshRecent() {
 func (p *Panel) setRecent(all []history.Entry) {
 	key := p.selKey()
 	p.histAll = p.withRemembered(all)
+	for _, e := range p.histAll {
+		if e.Title != "" {
+			p.titleOf[e.ID] = e.Title
+		}
+	}
 	p.rebuildItems(key)
+	for i := range p.agents {
+		p.syncTitle(i)
+	}
 }
 
 // withRemembered applies the profile each conversation was last opened with

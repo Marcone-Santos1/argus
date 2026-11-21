@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -113,29 +114,46 @@ func TestRebuildItemsGroupsByFolder(t *testing.T) {
 		{Tool: "claude", ID: "c5", Dir: "/p/api", Title: "Api 5 (over the limit)", Updated: now.Add(-4 * time.Hour)},
 	}
 	p.rebuildItems("")
-	var got []string
-	for _, it := range p.items {
-		if it.agent >= 0 {
-			got = append(got, it.dir+" session "+p.agents[it.agent].ID)
-		} else {
-			got = append(got, it.dir+" conversation "+it.entry.ID)
+	list := func() string {
+		var got []string
+		for _, it := range p.items {
+			switch {
+			case it.agent >= 0:
+				got = append(got, "session "+p.agents[it.agent].ID)
+			case it.folder:
+				got = append(got, fmt.Sprintf("folder %s %d", it.dir, it.count))
+			default:
+				got = append(got, "  conversation "+it.entry.ID)
+			}
 		}
+		return strings.Join(got, "\n")
 	}
-	want := []string{
-		"/p/api session a1", "/p/api session a3",
-		"/p/api conversation c2", "/p/api conversation c3", "/p/api conversation c4",
-		"/p/site session a2", // the conversation already open is not repeated
-		"/p/docs conversation c1",
+	// Sessions first; then one row per folder, newest first; the
+	// conversation already open is not repeated.
+	want := "session a1\nsession a2\nsession a3\nfolder /p/docs 1\nfolder /p/api 4"
+	if got := list(); got != want {
+		t.Fatalf("list:\n%s\nwant:\n%s", got, want)
 	}
-	if !reflect.DeepEqual(got, want) {
-		t.Fatalf("list:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	if i := p.nthAgentItem(2); i != 2 {
+		t.Errorf("key 3 goes to the third session: %d", i)
 	}
-	if i := p.nthAgentItem(2); i != 5 {
-		t.Errorf("key 3 goes to the third session (line 5): %d", i)
+
+	// Enter opens a folder: its conversations (up to the limit) show under it.
+	p.selectKey("f:/p/api")
+	p.handleKey("enter")
+	want += "\n  conversation c2\n  conversation c3\n  conversation c4\n  conversation c5"
+	if got := list(); got != want {
+		t.Fatalf("open folder:\n%s", got)
+	}
+	// Left on a conversation closes its folder and selects it.
+	p.handleKey("down")
+	p.handleKey("left")
+	if p.selKey() != "f:/p/api" || len(p.items) != 5 {
+		t.Fatalf("left closes the folder: %s %d", p.selKey(), len(p.items))
 	}
 
 	// The selection follows the item, not the position.
-	p.sel = 5
+	p.sel = 2
 	key := p.selKey()
 	p.agents = p.agents[1:] // a1 closed
 	p.rebuildItems(key)
@@ -143,10 +161,10 @@ func TestRebuildItemsGroupsByFolder(t *testing.T) {
 		t.Fatalf("selection lost: %s -> %s", key, p.selKey())
 	}
 
-	// Filter.
+	// A filter shows the matching conversations under their folders.
 	p.listFilter = "docs"
 	p.rebuildItems("")
-	if len(p.items) != 1 || p.items[0].entry.ID != "c1" {
+	if len(p.items) != 2 || !p.items[0].folder || p.items[1].entry.ID != "c1" {
 		t.Fatalf("filter: %+v", p.items)
 	}
 }
@@ -182,7 +200,7 @@ func TestKeyFilterAndInput(t *testing.T) {
 	for _, k := range []string{"a", "p", "i"} {
 		p.handleKey(k)
 	}
-	if p.listFilter != "api" || len(p.items) != 1 {
+	if p.listFilter != "api" || len(p.items) != 2 {
 		t.Fatalf("typed filter: %q %d", p.listFilter, len(p.items))
 	}
 	p.handleKey("enter")
@@ -241,23 +259,20 @@ func TestHelpScreen(t *testing.T) {
 
 func TestSessionText(t *testing.T) {
 	p := testPanel(t)
-	cases := []struct {
-		name, want string
-	}{
-		{"api", ""},            // nome automático: texto do perfil
-		{"api 2", ""},          // segunda sessão na pasta: também automático
-		{"api x", "api x"},     // renomeado
-		{"Pessoal", "Pessoal"}, // renomeado
-	}
+	p.titleOf["s1"] = "Fix the login"
 	pr := p.d.Config.Profiles[0]
+	cases := []struct {
+		name, session, want string
+	}{
+		{"api", "", "new conversation"},  // automatic name, no title yet
+		{"api 2", "s1", "Fix the login"}, // automatic name: the conversation title
+		{"api x", "s1", "api x"},         // renamed: the name wins
+		{"Pessoal", "", "Pessoal"},
+	}
 	for _, c := range cases {
-		got := p.sessionText(agent{Name: c.name, Dir: "/p/api", Profile: pr.Name})
-		want := c.want
-		if want == "" {
-			want = pr.Display()
-		}
-		if got != want {
-			t.Errorf("sessionText(%q) = %q, quer %q", c.name, got, want)
+		got := p.sessionText(agent{Name: c.name, Dir: "/p/api", Profile: pr.Name, Session: c.session})
+		if got != c.want && !(c.want == "new conversation" && got == "nova conversa") {
+			t.Errorf("sessionText(%q) = %q, want %q", c.name, got, c.want)
 		}
 	}
 }

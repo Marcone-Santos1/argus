@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode/utf8"
@@ -20,9 +21,35 @@ const (
 	cDone    = "\x1b[38;2;152;195;121m"
 	cEnded   = "\x1b[38;2;224;108;117m"
 	cAmber   = "\x1b[38;2;229;192;123m"
-	bgSel    = "\x1b[48;2;43;49;60m"
+	bgSel    = "\x1b[48;2;41;50;69m"
 	bgWait   = "\x1b[48;2;58;48;32m"
 )
+
+// accountHex are the account colors, given to the profiles in config order:
+// one glance at the tag (or the title above a session) says which account it is.
+var accountHex = []string{"#56b6c2", "#d19a66", "#61afef", "#e48aa8", "#a6d189"}
+
+// accountColor is a profile's color as a tmux style color ("#56b6c2").
+func (p *Panel) accountHex(profile string) string {
+	for i, pr := range p.d.Config.Profiles {
+		if pr.Name == profile {
+			return accountHex[i%len(accountHex)]
+		}
+	}
+	return "#6c717c"
+}
+
+// accountColor is the same color as a terminal escape.
+func (p *Panel) accountColor(profile string) string { return fgHex(p.accountHex(profile)) }
+
+// fgHex turns "#rrggbb" into a 24-bit foreground escape.
+func fgHex(h string) string {
+	var r, g, b int
+	if _, err := fmt.Sscanf(h, "#%02x%02x%02x", &r, &g, &b); err != nil {
+		return cQuiet
+	}
+	return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", r, g, b)
+}
 
 // span is a piece of a line with its own style.
 type span struct{ text, style string }

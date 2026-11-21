@@ -10,17 +10,21 @@ import (
 	"github.com/Marcone-Santos1/argus/internal/history"
 )
 
-// How many folders with only past conversations, and how many conversations per folder, the list shows.
+// How many folders with past conversations the list shows, and how many
+// conversations an opened folder shows.
 const (
-	recentFolders   = 8
-	recentPerFolder = 3
+	recentFolders   = 10
+	recentPerFolder = 5
 )
 
-// item is a selectable line: an open session or a past conversation.
+// item is a selectable line: an open session, a folder of past
+// conversations, or one of its conversations (when the folder is open).
 type item struct {
-	dir   string
-	agent int // index in p.agents; -1 = past conversation
-	entry history.Entry
+	dir    string
+	agent  int  // index in p.agents; -1 = not a session
+	folder bool // a folder row (entry is its newest conversation)
+	count  int  // folder: how many conversations it has
+	entry  history.Entry
 }
 
 func (p *Panel) itemKey(i int) string {
@@ -28,8 +32,11 @@ func (p *Panel) itemKey(i int) string {
 		return ""
 	}
 	it := p.items[i]
-	if it.agent >= 0 && it.agent < len(p.agents) {
+	switch {
+	case it.agent >= 0 && it.agent < len(p.agents):
 		return "a:" + p.agents[it.agent].ID
+	case it.folder:
+		return "f:" + it.dir
 	}
 	return "r:" + it.entry.Key()
 }
@@ -46,69 +53,101 @@ func (p *Panel) selectKey(k string) bool {
 	return false
 }
 
-// rebuildItems builds the list grouped by folder: first the folders with open
-// sessions (the sessions, then that folder's past conversations), then the
-// folders with only past conversations, most recently used first. Conversations
-// already open in a session are not repeated. The filter (/) applies to all.
+// rebuildItems builds the list in two parts: the open sessions, oldest first;
+// then one row per folder with past conversations, most recently used first,
+// with its conversations under it when the folder is open (or a filter is
+// typed). Conversations already open in a session are not repeated.
 func (p *Panel) rebuildItems(keep string) {
 	open := map[string]bool{}
-	var openDirs []string
-	agentsBy := map[string][]int{}
+	old := p.sel
+	p.items = p.items[:0]
 	for i, a := range p.agents {
 		if a.Session != "" {
 			open[a.Session] = true
 		}
-		if p.listFilter != "" && !matchTerms(a.Dir+" "+a.Name+" "+a.Profile, p.listFilter) {
+		if p.listFilter != "" && !matchTerms(a.Dir+" "+a.Name+" "+a.Profile+" "+p.titleOf[a.Session], p.listFilter) {
 			continue
 		}
-		if _, ok := agentsBy[a.Dir]; !ok {
-			openDirs = append(openDirs, a.Dir)
-		}
-		agentsBy[a.Dir] = append(agentsBy[a.Dir], i)
+		p.items = append(p.items, item{dir: a.Dir, agent: i})
 	}
-	var pastDirs []string
-	seen := map[string]bool{}
-	recentBy := map[string][]history.Entry{}
+	var dirs []string
+	byDir := map[string][]history.Entry{}
+	count := map[string]int{}
 	hidden := map[string]bool{}
 	for _, e := range p.histAll {
-		if open[e.ID] || isTemp(e.Dir) {
+		if isTemp(e.Dir) {
 			continue
 		}
 		if p.listFilter != "" && !matchTerms(e.Dir+" "+e.Title+" "+e.Profile+" "+e.Tool, p.listFilter) {
 			continue
 		}
-		if _, isOpen := agentsBy[e.Dir]; !isOpen && !seen[e.Dir] {
-			if len(pastDirs) == recentFolders {
+		// A folder's place is its newest conversation, the open ones
+		// included (it is in use), but those are not listed again.
+		if _, seen := byDir[e.Dir]; !seen {
+			if len(dirs) == recentFolders {
 				hidden[e.Dir] = true
 				continue
 			}
-			seen[e.Dir] = true
-			pastDirs = append(pastDirs, e.Dir)
+			dirs = append(dirs, e.Dir)
+			byDir[e.Dir] = nil
 		}
-		if len(recentBy[e.Dir]) < recentPerFolder {
-			recentBy[e.Dir] = append(recentBy[e.Dir], e)
+		if open[e.ID] {
+			continue
+		}
+		count[e.Dir]++
+		if len(byDir[e.Dir]) < recentPerFolder {
+			byDir[e.Dir] = append(byDir[e.Dir], e)
 		}
 	}
 	p.hiddenFolders = len(hidden)
-	old := p.sel
-	p.items = p.items[:0]
-	for _, d := range openDirs {
-		for _, i := range agentsBy[d] {
-			p.items = append(p.items, item{dir: d, agent: i})
+	for _, d := range dirs {
+		es := byDir[d]
+		if len(es) == 0 {
+			continue
 		}
-		for _, e := range recentBy[d] {
-			p.items = append(p.items, item{dir: d, agent: -1, entry: e})
-		}
-	}
-	for _, d := range pastDirs {
-		for _, e := range recentBy[d] {
-			p.items = append(p.items, item{dir: d, agent: -1, entry: e})
+		p.items = append(p.items, item{dir: d, agent: -1, folder: true, count: count[d], entry: es[0]})
+		if p.expanded[d] || p.listFilter != "" {
+			for _, e := range es {
+				p.items = append(p.items, item{dir: d, agent: -1, entry: e})
+			}
 		}
 	}
 	if keep == "" || !p.selectKey(keep) {
-		p.sel = old
+		// A conversation of a folder that closed: select the folder.
+		if !strings.HasPrefix(keep, "r:") || !p.selectFolderOf(keep) {
+			p.sel = old
+		}
 	}
 	p.sel = clamp(p.sel, len(p.items))
+}
+
+// selectFolderOf selects the folder row of a conversation key ("r:...").
+func (p *Panel) selectFolderOf(key string) bool {
+	for _, e := range p.histAll {
+		if "r:"+e.Key() == key {
+			return p.selectKey("f:" + e.Dir)
+		}
+	}
+	return false
+}
+
+// toggleFolder opens or closes the selected folder (or the folder of the
+// selected conversation); open=nil flips it.
+func (p *Panel) toggleFolder(open *bool) {
+	if p.sel < 0 || p.sel >= len(p.items) || p.items[p.sel].agent >= 0 {
+		return
+	}
+	it := p.items[p.sel]
+	want := !p.expanded[it.dir]
+	if open != nil {
+		want = *open
+	}
+	if want {
+		p.expanded[it.dir] = true
+	} else {
+		delete(p.expanded, it.dir)
+	}
+	p.rebuildItems("f:" + it.dir)
 }
 
 // nthAgentItem is the list position of the n-th open session (0 = first).

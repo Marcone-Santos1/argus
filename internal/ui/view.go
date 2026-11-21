@@ -103,78 +103,100 @@ const sparkLen = 8
 
 func (p *Panel) viewList() []string {
 	w := p.w
-	body := []string{p.header(w)}
+	var body []string
 	if p.mode == modeFilter || p.listFilter != "" {
 		cursor := ""
 		if p.mode == modeFilter {
 			cursor = "█"
 		}
-		body = append(body, line(w, "", sp(" / ", cAccent), sp(p.listFilter+cursor, "")))
-	}
-	if len(p.agents) == 0 && p.listFilter == "" {
-		body = append(body, "", line(w, "", sp(i18n.T("list.empty1"), cQuiet)), line(w, "", sp(i18n.T("list.empty2"), cQuiet)))
+		body = append(body, line(w, "", sp(" / ", cAccent), sp(p.listFilter+cursor, "")), "")
 	}
 	focusLine := -1
 	now := time.Now()
 	num := 0
-	for idx, it := range p.items {
-		if idx == 0 || it.dir != p.items[idx-1].dir {
-			body = append(body, "", p.folderHeader(it.dir, w))
+	if len(p.agents) > 0 || p.listFilter == "" {
+		body = append(body, section(i18n.T("sec.open"), w))
+	}
+	if len(p.agents) == 0 && p.listFilter == "" {
+		body = append(body, line(w, "", sp(i18n.T("list.empty1"), cQuiet)), line(w, "", sp(i18n.T("list.empty2"), cQuiet)))
+	}
+	recents := false
+	p.folderW = 0
+	for _, it := range p.items {
+		if it.folder {
+			p.folderW = max(p.folderW, width(p.folderName(it.dir)))
 		}
-		last := idx == len(p.items)-1 || p.items[idx+1].dir != it.dir
+	}
+	p.folderW = min(p.folderW, max(w/3, 8))
+	for idx, it := range p.items {
 		sel := idx == p.sel && p.mode != modeFilter
+		if it.agent < 0 && !recents {
+			recents = true
+			body = append(body, "", section(i18n.T("sec.recent"), w))
+		}
 		if idx == p.sel {
 			focusLine = len(body)
 		}
-		if it.agent >= 0 {
+		switch {
+		case it.agent >= 0:
 			num++
 			a := p.agents[it.agent]
-			body = append(body, p.agentRow(a, num, sel, last, now, w))
+			body = append(body, p.agentRows(a, num, sel, now, w)...)
 			if pr, ok := p.prompts[a.ID]; ok && a.Status == status.Waiting {
-				body = append(body, p.promptLines(pr, last, w)...)
+				body = append(body, p.promptLines(pr, w)...)
 			}
-		} else {
-			body = append(body, p.recentRow(it.entry, sel, last, now, w))
+		case it.folder:
+			body = append(body, p.folderRow(it, sel, now, w))
+		default:
+			body = append(body, p.entryRow(it.entry, sel, now, w))
 		}
 	}
 	if p.hiddenFolders > 0 && p.listFilter == "" {
-		body = append(body, "", line(w, "", sp(i18n.T("list.more", p.hiddenFolders), cFaint)))
+		body = append(body, line(w, "", sp(i18n.T("list.more", p.hiddenFolders), cFaint)))
 	}
 	if len(p.items) == 0 && p.listFilter != "" {
-		body = append(body, "", line(w, "", sp(i18n.T("list.nothing"), cQuiet)))
+		body = append(body, line(w, "", sp(i18n.T("list.nothing"), cQuiet)))
 	}
+	p.syncPanelTitle()
 	return layout(body, p.footer(), p.h, max(focusLine, 0))
 }
 
-// header: the name on the left and, on the right, how many sessions are in
-// each state (only the states that have any).
-func (p *Panel) header(w int) string {
+// section is a part's heading: a small label and a rule to the edge.
+func section(label string, w int) string {
+	return line(w, "", sp(" "+label+" ", "\x1b[1m"+cQuiet), sp(strings.Repeat("─", max(w-width(label)-2, 0)), cFaint))
+}
+
+// panelTitle is the text tmux draws on the panel's top border: the name and,
+// on its right, how many sessions are in each state.
+func (p *Panel) panelTitle() string {
 	counts := map[string]int{}
 	for _, a := range p.agents {
 		counts[a.Status]++
 	}
-	var right []span
+	t := " #[fg=#7aa2f7,bold]argus#[nobold] "
 	for _, st := range []string{status.Working, status.Waiting, status.Done} {
 		if counts[st] == 0 {
 			continue
 		}
 		icon, color, _ := statusStyle(st)
-		right = append(right, sp(icon+" "+fmt.Sprint(counts[st]), color), sp("  ", ""))
+		t += fmt.Sprintf(" #[fg=%s]%s %d", tmuxColor(color), icon, counts[st])
 	}
 	total := i18n.T("list.sessions", len(p.agents))
 	if len(p.agents) == 1 {
 		total = i18n.T("list.session")
 	}
-	right = append(right, sp("· "+total+" ", cQuiet))
-	rw := 0
-	for _, s := range right {
-		rw += width(s.text)
+	return t + " #[fg=#6c717c]· " + total + " #[default]"
+}
+
+// syncPanelTitle updates the panel's border title, only when it changes.
+func (p *Panel) syncPanelTitle() {
+	t := p.panelTitle()
+	if p.titles[p.d.Self] == t || p.d.Self == "" {
+		return
 	}
-	if rw+8 > w { // narrow: just the name
-		return line(w, "", sp(" argus", "\x1b[1m"+cAccent))
+	if err := p.d.Tmux.SetPaneOptions(p.d.Self, "@argus_title", t); err == nil {
+		p.titles[p.d.Self] = t
 	}
-	spans := append([]span{sp(" argus", "\x1b[1m"+cAccent), sp(strings.Repeat(" ", w-6-rw), "")}, right...)
-	return line(w, "", spans...)
 }
 
 func (p *Panel) footer() []string {
@@ -197,19 +219,30 @@ func (p *Panel) footer() []string {
 	if stats := p.statsSpans(); stats != nil {
 		foot = append(foot, line(w, "", stats...))
 	}
-	hints := tr("hint.enter", "hint.toggle", "hint.tab", "hint.new", "hint.help")
-	for _, h := range wrapHints(hints, w) {
+	for _, h := range wrapHints(tr(p.hintKeys()...), w) {
 		foot = append(foot, line(w, "", sp(stripANSI(h), cFaint)))
 	}
 	return foot
 }
 
-func (p *Panel) folderHeader(dir string, w int) string {
-	parent := p.d.Paths.Pretty(filepath.Dir(dir))
-	if p.d.Paths.Pretty(dir) == "~" {
-		parent = "~"
+// hintKeys are the keys that make sense for what is selected.
+func (p *Panel) hintKeys() []string {
+	if p.sel >= 0 && p.sel < len(p.items) {
+		it := p.items[p.sel]
+		switch {
+		case it.agent >= 0:
+			keys := []string{"hint.enter", "hint.toggle"}
+			if p.agents[it.agent].Status == status.Waiting {
+				keys = append(keys, "hint.answer")
+			}
+			return append(keys, "hint.rename", "hint.close", "hint.help")
+		case it.folder:
+			return []string{"hint.expand", "hint.new", "hint.history", "hint.help"}
+		default:
+			return []string{"hint.resume", "hint.new", "hint.help"}
+		}
 	}
-	return line(w, "", sp(" "+filepath.Base(dir), cFolder), sp(" "+parent, cFaint))
+	return []string{"hint.new", "hint.history", "hint.help"}
 }
 
 // autoName reports whether a session still has the name Argus gave it: the
@@ -231,39 +264,41 @@ func autoName(name, dir string) bool {
 	return true
 }
 
-// sessionText is what a session row shows: the name given with r, otherwise
-// the profile's display text ("claude per" or config.toml's "display").
+// sessionText is what names a session: the name given with r, otherwise the
+// conversation's title, otherwise "new conversation".
 func (p *Panel) sessionText(a agent) string {
 	if !autoName(a.Name, a.Dir) {
 		return a.Name
 	}
-	if pr, ok := p.profileOf(a.Profile); ok {
-		return pr.Display()
+	if t := p.titleOf[a.Session]; t != "" && a.Session != "" {
+		return t
 	}
-	return a.Profile + " ?"
+	return i18n.T("list.newConv")
 }
 
-func guide(last bool) string {
-	if last {
-		return "└"
+// tag is a profile's short account label ("emp", "oc").
+func (p *Panel) tag(profile string) string {
+	if pr, ok := p.profileOf(profile); ok {
+		return pr.Tag()
 	}
-	return "├"
+	return "?"
 }
 
-// rowStart is the bar and tree guide every row begins with. The bar marks the
-// selection (blue) or a session waiting for you (amber).
-func rowStart(sel, waiting, last bool) (bg string, spans []span) {
-	bar := sp(" ", "")
+// rowBar is the column every row starts with: blue on the selection, amber
+// on a session waiting for you.
+func rowBar(sel, waiting bool) (bg string, bar span) {
 	switch {
 	case sel:
-		bg, bar = bgSel, sp("▌", cAccent)
+		return bgSel, sp("▌", cAccent)
 	case waiting:
-		bg, bar = bgWait, sp("▌", cAmber)
+		return bgWait, sp("▌", cAmber)
 	}
-	return bg, []span{bar, sp(" "+guide(last)+" ", cFaint)}
+	return "", sp(" ", "")
 }
 
-func (p *Panel) agentRow(a agent, num int, sel, last bool, now time.Time, w int) string {
+// agentRows is an open session in two lines: status, number, title and
+// state; under it, the account and the folder.
+func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []string {
 	icon, color, word := statusStyle(a.Status)
 	el := ""
 	if !a.Since.IsZero() {
@@ -273,26 +308,72 @@ func (p *Panel) agentRow(a agent, num int, sel, last bool, now time.Time, w int)
 	if w < 44 { // narrow: no status word
 		right = el
 	}
-	text := p.sessionText(a)
-	if a.Worktree != "" {
-		text += " ⑂"
-	}
+	tag := p.tag(a.Profile)
 	n := " "
 	if num <= 9 {
 		n = fmt.Sprint(num)
 	}
 	textStyle := ""
-	if a.Displayed {
+	if a.Displayed || sel {
 		textStyle = "\x1b[1m"
 	}
-	bg, spans := rowStart(sel, a.Status == status.Waiting, last)
-	used := 4 + 2 + 3 // start + icon + number
+	bg, bar := rowBar(sel, a.Status == status.Waiting)
+	used := 1 + 3 + 3 // bar + icon + number
 	textW := max(w-used-width(right)-2, 1)
-	spans = append(spans,
-		sp(icon+" ", color), sp(n+"  ", cQuiet),
-		sp(fit(text, textW), textStyle), sp(" ", ""),
+	first := line(w, bg, bar,
+		sp(" "+icon+" ", color), sp(n+"  ", cQuiet),
+		sp(fit(p.sessionText(a), textW), textStyle), sp("  ", ""),
 		sp(right, color), sp(" ", ""))
-	return line(w, bg, spans...)
+	where := p.d.Paths.Pretty(a.Dir)
+	if a.Worktree != "" {
+		where += " ⑂"
+	}
+	second := line(w, bg, bar, sp("      ", ""), sp(tag, p.accountColor(a.Profile)), sp(" · "+where, cFaint))
+	return []string{first, second}
+}
+
+// folderRow is a folder of past conversations: name, how many, the newest
+// title and its age. ▸ / ▾ tell whether it is open.
+func (p *Panel) folderRow(it item, sel bool, now time.Time, w int) string {
+	bg, bar := rowBar(sel, false)
+	arrow := "▸"
+	if p.expanded[it.dir] || p.listFilter != "" {
+		arrow = "▾"
+	}
+	right := fmt.Sprintf("%2d · %3s", it.count, status.Short(now.Sub(it.entry.Updated)))
+	name := fit(p.folderName(it.dir), max(p.folderW, 1))
+	nameStyle := cFolder
+	if !sel {
+		nameStyle = "\x1b[38;2;97;175;239m" // the folder color without bold
+	}
+	titleW := max(w-1-3-width(name)-2-width(right)-3, 0)
+	title := strings.Repeat(" ", titleW)
+	if titleW >= 6 && arrow == "▸" { // open, its conversations show below
+		title = fit(it.entry.Title, titleW)
+	}
+	return line(w, bg, bar, sp(" "+arrow+" ", cFaint), sp(name, nameStyle), sp("  ", ""),
+		sp(title, cFaint), sp("  ", ""), sp(right, cFaint), sp(" ", ""))
+}
+
+func (p *Panel) folderName(dir string) string {
+	if p.d.Paths.Pretty(dir) == "~" {
+		return "~"
+	}
+	return filepath.Base(dir)
+}
+
+// entryRow is a past conversation inside an open folder.
+func (p *Panel) entryRow(e history.Entry, sel bool, now time.Time, w int) string {
+	bg, bar := rowBar(sel, false)
+	tag := p.entryTag(e)
+	age := fmt.Sprintf("%3s", status.Short(now.Sub(e.Updated)))
+	titleW := max(w-1-5-width(tag)-2-width(age)-3, 1)
+	titleStyle := cQuiet
+	if sel {
+		titleStyle = ""
+	}
+	return line(w, bg, bar, sp("     ", ""), sp(fit(e.Title, titleW), titleStyle), sp("  ", ""),
+		sp(tag, p.accountColor(e.Profile)), sp("  ", ""), sp(age, cFaint), sp(" ", ""))
 }
 
 func (p *Panel) entryTag(e history.Entry) string {
@@ -303,18 +384,6 @@ func (p *Panel) entryTag(e history.Entry) string {
 		return pr.Tag()
 	}
 	return "?"
-}
-
-func (p *Panel) recentRow(e history.Entry, sel, last bool, now time.Time, w int) string {
-	right := fmt.Sprintf("%-3s %3s", p.entryTag(e), status.Short(now.Sub(e.Updated)))
-	bg, spans := rowStart(sel, false, last)
-	titleW := max(w-4-5-width(right)-2, 1)
-	titleStyle := cQuiet
-	if sel {
-		titleStyle = ""
-	}
-	spans = append(spans, sp("↺    ", cFaint), sp(fit(e.Title, titleW), titleStyle), sp(" ", ""), sp(right, cFaint), sp(" ", ""))
-	return line(w, bg, spans...)
 }
 
 func wrapHints(hints []string, w int) []string {
@@ -472,22 +541,47 @@ func (p *Panel) viewHelp() []string {
 	return layout(body, foot, p.h, 0)
 }
 
-// statsSpans is the footer's machine line: CPU and memory, each with a
-// sparkline of the last 16 s, and processes created per minute.
+// statsSpans is the footer's machine line: CPU, memory and processes created
+// per minute. Colors only show up when something is high; the CPU sparkline
+// only when there was load in the last 16 s.
 func (p *Panel) statsSpans() []span {
 	r := p.reading
 	var out []span
+	calm := func(color string) string {
+		if color == cDone {
+			return ""
+		}
+		return color
+	}
 	if r.CPU >= 0 {
-		out = append(out, sp(" CPU ", cQuiet), sp(spark(p.cpuHist), loadColor(r.CPU)), sp(fmt.Sprintf(" %.0f%%", r.CPU), ""))
+		out = append(out, sp(" CPU ", cQuiet))
+		if peak(p.cpuHist) >= 25 {
+			out = append(out, sp(spark(p.cpuHist)+" ", loadColor(r.CPU)))
+		}
+		out = append(out, sp(fmt.Sprintf("%.0f%%", r.CPU), calm(loadColor(r.CPU))))
 	}
 	if m := r.MemPercent(); m >= 0 {
-		out = append(out, sp("   Mem ", cQuiet), sp(spark(p.memHist), memColor(m)),
-			sp(" "+gb(r.MemUsed)+"/"+gb(r.MemTotal)+" GB", ""))
+		const cells = 6
+		full := min(int(m/100*cells+0.5), cells)
+		barColor := cQuiet
+		if c := memColor(m); c != cDone {
+			barColor = c
+		}
+		out = append(out, sp("   Mem ", cQuiet), sp(gb(r.MemUsed)+"/"+gb(r.MemTotal)+" GB ", calm(memColor(m))),
+			sp(strings.Repeat("━", full), barColor), sp(strings.Repeat("━", cells-full), cFaint))
 	}
 	if r.PerMinute >= 0 {
 		out = append(out, sp("   "+i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", r.PerMinute), ""))
 	}
 	return out
+}
+
+func peak(vals []float64) float64 {
+	m := 0.0
+	for _, v := range vals {
+		m = max(m, v)
+	}
+	return m
 }
 
 // gb formats bytes as gigabytes with one decimal ("11.2"), or none from 100 up.
@@ -501,12 +595,8 @@ func gb(b uint64) string {
 
 // promptLines shows, under a session waiting for you, what it asks: the
 // context (the command) and the options, with "y" to answer from here.
-func (p *Panel) promptLines(pr prompt, last bool, w int) []string {
-	rail := "│"
-	if last {
-		rail = " "
-	}
-	lead := []span{sp(" ", ""), sp(" "+rail+"     ", cFaint)}
+func (p *Panel) promptLines(pr prompt, w int) []string {
+	lead := []span{sp("▌", cAmber), sp("      ", "")}
 	var out []string
 	if text := pr.Context; text != "" || pr.Question != "" {
 		if text == "" {
@@ -519,7 +609,7 @@ func (p *Panel) promptLines(pr prompt, last bool, w int) []string {
 		opts = append(opts, fmt.Sprintf("%d %s", i+1, short(o, 16)))
 	}
 	hint := i18n.T("prompt.hint")
-	optW := max(w-width(" "+rail+"     ")-1-width(hint)-2, 8)
+	optW := max(w-7-1-width(hint)-2, 8)
 	out = append(out, line(w, bgWait, append(lead,
 		sp(fit(strings.Join(opts, " · "), optW), cWaiting), sp("  ", ""), sp(hint, cAccent))...))
 	return out

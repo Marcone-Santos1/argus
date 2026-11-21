@@ -117,6 +117,9 @@ type Panel struct {
 	cpuHist []float64 // last CPU readings, for the footer sparkline
 	memHist []float64 // last memory readings (% in use)
 
+	expanded      map[string]bool   // folders of past conversations opened in the list
+	titleOf       map[string]string // conversation id -> its title (from the history)
+	folderW       int               // width of the folder-name column in the list
 	hiddenFolders int               // folders with old conversations left out of the list
 	prevLines     []string          // what is on screen, to redraw only what changed
 	titles        map[string]string // pane title already set, per pane
@@ -166,7 +169,7 @@ func New(d Deps) *Panel {
 	return &Panel{
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
-		prompts: map[string]prompt{}, captureC: make(chan string, 8),
+		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
@@ -391,6 +394,9 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	prev, seen := p.lastState[a.ID]
 	a.Status, a.Since = st, since
 	p.lastState[a.ID] = st
+	if seen && prev == status.Working && st != status.Working {
+		p.refreshRecent() // the turn ended: the conversation may have a (new) title
+	}
 	if st == status.Waiting && (prev != st || !seen) {
 		p.capturePromptSoon(a.ID)
 	} else if st != status.Waiting {
@@ -503,13 +509,10 @@ func (p *Panel) syncTitle(i int) {
 	a := p.agents[i]
 	icon, color, word := statusStyle(a.Status)
 	esc := func(s string) string { return strings.ReplaceAll(s, "#", "##") }
-	var parts []string
-	if pr, ok := p.profileOf(a.Profile); ok && !autoName(a.Name, a.Dir) {
-		parts = append(parts, pr.Display())
-	}
-	parts = append(parts, p.d.Paths.Pretty(a.Dir), i18n.T(word))
-	title := fmt.Sprintf(" #[fg=%s]%s#[default] #[bold]%s#[nobold]#[fg=#6c717c] · %s ",
-		tmuxColor(color), icon, esc(p.sessionText(a)), esc(strings.Join(parts, " · ")))
+	title := fmt.Sprintf(" #[fg=%s]%s#[default] #[bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg=#6c717c] · %s · #[fg=%s]%s ",
+		tmuxColor(color), icon, esc(p.sessionText(a)),
+		p.accountHex(a.Profile), esc(p.tag(a.Profile)),
+		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))
 	if p.titles[a.Pane] == title {
 		return
 	}

@@ -19,8 +19,8 @@ A terminal panel for running many [Claude Code](https://claude.com/claude-code),
 ```
 
 - **Each session is the real CLI** in a real terminal: memory, MCP servers, skills, hooks and permissions work as usual.
-- **The list is grouped by folder**, with each session's status: ● working, ◐ waiting for you, ✓ done. A desktop notification arrives when the status changes.
-- **Past conversations** from Claude Code and opencode show up in the list and resume with Enter.
+- **Open sessions come first**, named by their conversation title and colored by account, with each one's status: ● working, ◐ waiting for you, ✓ done. A desktop notification arrives when the status changes.
+- **Past conversations** from Claude Code and opencode are grouped by folder below them: Enter (or →) opens a folder, Enter on a conversation resumes it.
 - **Several profiles**, for example two Claude accounts (`CLAUDE_CONFIG_DIR`), opencode and Gemini.
 - **Worktrees:** `w` opens a session on a new branch next to the repository, so two sessions never step on each other.
 - **Measured performance:** no daemon, no polling, hooks in plain shell. The footer shows CPU and processes created per minute and warns when something runs away; `argus bench` measures it all.
@@ -52,7 +52,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | Key | Action |
 | --- | --- |
 | `↑` `↓` | select; an open session shows on the right |
-| `Enter` | enter the session, or resume the past conversation |
+| `Enter` | enter the session, open a folder, or resume the past conversation |
+| `→ ←` | open / close a folder of past conversations |
 | `Ctrl+\` | switch between the list and the session (from anywhere) |
 | `Tab` | jump to the next session waiting for you |
 | `n` | new session: project and profile |

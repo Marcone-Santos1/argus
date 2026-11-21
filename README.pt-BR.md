@@ -19,8 +19,8 @@ Painel de terminal para rodar várias sessões de [Claude Code](https://claude.c
 ```
 
 - **Cada sessão é o próprio CLI** num terminal de verdade: memória, MCPs, skills, hooks e permissões continuam iguais.
-- **A lista é agrupada por pasta**, com o status de cada sessão: ● trabalhando, ◐ esperando você, ✓ terminou. Quando o status muda, chega um aviso do macOS.
-- **Conversas antigas** do Claude Code e do opencode aparecem na lista e são retomadas com Enter.
+- **As sessões abertas vêm primeiro**, com o título da conversa e a cor da conta, e o status de cada uma: ● trabalhando, ◐ esperando você, ✓ terminou. Quando o status muda, chega um aviso do macOS.
+- **Conversas antigas** do Claude Code e do opencode ficam agrupadas por pasta abaixo delas: Enter (ou →) abre a pasta, Enter numa conversa a retoma.
 - **Vários perfis**, por exemplo duas contas do Claude (`CLAUDE_CONFIG_DIR`) e o opencode.
 - **Worktrees:** `w` abre uma sessão num branch novo, ao lado do repositório, para duas sessões não se atropelarem.
 - **Desempenho medido:** sem daemon, painel sem polling, hook em shell puro. O rodapé mostra CPU e processos criados por minuto e avisa se algo disparar; `argus bench` mede tudo.
@@ -51,7 +51,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | Tecla | Ação |
 | --- | --- |
 | `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
-| `Enter` | entra na sessão, ou retoma a conversa antiga |
+| `Enter` | entra na sessão, abre a pasta, ou retoma a conversa antiga |
+| `→ ←` | abre / fecha uma pasta de conversas antigas |
 | `Ctrl+\` | alterna entre a lista e a sessão (de qualquer lugar) |
 | `Tab` | pula para a próxima sessão esperando você |
 | `n` | nova sessão: projeto e perfil |
