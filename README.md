@@ -20,7 +20,8 @@ A terminal panel for running many [Claude Code](https://claude.com/claude-code),
 
 - **Each session is the real CLI** in a real terminal: memory, MCP servers, skills, hooks and permissions work as usual.
 - **Open sessions come first**, named by their conversation title and colored by account, with each one's status: ● working, ◐ waiting for you, ✓ done. A desktop notification arrives when the status changes.
-- **Past conversations** from Claude Code and opencode are grouped by folder below them: Enter (or →) opens a folder, Enter on a conversation resumes it.
+- **Past conversations** from Claude Code and opencode are grouped by folder below them: Enter (or →) opens a folder, Enter on a conversation resumes it. The history (h) searches titles as you type and, a moment later, the text of every conversation (≈ marks those).
+- **Under each session**: its account, folder, git branch with changed files and unpushed commits, how full the context is and, once it finishes, the first line of Claude's last reply. The footer shows each Claude account's 5-hour and 7-day usage, read from Claude Code's status line (Argus installs one that prints nothing; it keeps yours if you have one).
 - **Several profiles**, for example two Claude accounts (`CLAUDE_CONFIG_DIR`), opencode and Gemini.
 - **Worktrees:** `w` opens a session on a new branch next to the repository, so two sessions never step on each other.
 - **Measured performance:** no daemon, no polling, hooks in plain shell. The footer shows CPU and processes created per minute and warns when something runs away; `argus bench` measures it all.
@@ -54,6 +55,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `↑` `↓` | select; an open session shows on the right |
 | `Enter` | enter the session, open a folder, or resume the past conversation |
 | `→ ←` | open / close a folder of past conversations |
+| `t` | templates: start a saved session (folder, account and first message); with a session selected, save it as one |
 | `< >` | narrow / widen the list (or drag the border; the width is remembered) |
 | click | selects (a session shows on the right); double click enters, or resumes a conversation |
 | `Ctrl+\` | switch between the list and the session (from anywhere) |

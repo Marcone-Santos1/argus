@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"path/filepath"
 	"reflect"
 	"testing"
@@ -173,5 +174,32 @@ display = "Claude da empresa"
 	}
 	if got := c.Profiles[1].Display(); got != "Claude da empresa" {
 		t.Errorf("display do config: %q", got)
+	}
+}
+
+func TestTemplates(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.toml")
+	_ = os.WriteFile(cfgPath, []byte(`
+[[profile]]
+name = "claude"
+command = "claude"
+[[template]]
+name = "review"
+dir = "~/p/api"
+profile = "claude"
+prompt = "Read the notes"
+`), 0o644)
+	c, err := Load(cfgPath, "/home/ana")
+	if err != nil || len(c.Templates) != 1 || c.Templates[0].Dir != "/home/ana/p/api" || c.Templates[0].Saved {
+		t.Fatalf("config template: %+v %v", c.Templates, err)
+	}
+	saved := append(c.Templates, Template{Name: "it's \"new\"", Dir: "/x", Profile: "claude", Prompt: "multi\nline", Saved: true})
+	if err := SaveTemplates(filepath.Join(dir, TemplatesFile), saved); err != nil {
+		t.Fatal(err)
+	}
+	c, _ = Load(cfgPath, "/home/ana")
+	if len(c.Templates) != 2 || !c.Templates[1].Saved || c.Templates[1].Name != `it's "new"` || c.Templates[1].Prompt != "multi\nline" {
+		t.Fatalf("saved template round trip: %+v", c.Templates)
 	}
 }

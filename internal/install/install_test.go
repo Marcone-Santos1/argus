@@ -277,3 +277,29 @@ func TestHookScript(t *testing.T) {
 		t.Fatalf("only the session's file: %v", entries)
 	}
 }
+
+func TestStatusLine(t *testing.T) {
+	cmd := "/h/.local/share/argus/statusline.sh"
+	js, added, err := AddStatusLine([]byte(`{"hooks":{}}`), cmd)
+	if err != nil || !added || !strings.Contains(string(js), cmd) {
+		t.Fatalf("add: %s %v %v", js, added, err)
+	}
+	if _, again, _ := AddStatusLine(js, cmd); again {
+		t.Fatal("added twice")
+	}
+	own := []byte(`{"statusLine":{"type":"command","command":"~/my.sh"}}`)
+	if out, added, _ := AddStatusLine(own, cmd); added || string(out) != string(own) {
+		t.Fatal("the user's own status line is kept")
+	}
+	if _, removed := RemoveStatusLine(own, cmd); removed {
+		t.Fatal("never removes the user's status line")
+	}
+	out, removed := RemoveStatusLine(js, cmd)
+	if !removed || strings.Contains(string(out), "statusLine") {
+		t.Fatalf("remove: %s", out)
+	}
+	s := StatusLineScript("/st", "/bin/dash")
+	if !strings.Contains(s, "/st/_usage/$ARGUS_ID") || !strings.HasPrefix(s, "#!/bin/dash") {
+		t.Fatal(s)
+	}
+}

@@ -27,6 +27,8 @@ func (p *Panel) handleKey(k string) {
 		}
 	case modeAnswer:
 		p.keyAnswer(k)
+	case modeTemplates:
+		p.keyTemplates(k)
 	case modeHelp:
 		p.closePicker() // any key closes the help (and leaves the zoom)
 	case modeInput:
@@ -141,6 +143,7 @@ func (p *Panel) keyHistory(k string) {
 		if editText(&p.filter, k) {
 			p.histSel = 0
 			p.applyHistFilter()
+			p.scheduleSearch()
 		}
 	}
 }
@@ -222,6 +225,8 @@ func (p *Panel) keyList(k string) {
 		p.startWorktree()
 	case "h":
 		p.openHistory()
+	case "t":
+		p.openTemplates()
 	case "a":
 		p.switchAccount()
 	case "?":

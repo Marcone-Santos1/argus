@@ -120,6 +120,11 @@ func (p *Panel) handleMouse(k string) {
 		if double {
 			p.keyPickProfile("enter")
 		}
+	case modeTemplates:
+		p.tplSel = target
+		if double {
+			p.pickTemplate(target)
+		}
 	}
 }
 
@@ -159,5 +164,7 @@ func (p *Panel) wheel(dir string) {
 		p.keyHistory(dir)
 	case modePickProfile:
 		p.keyPickProfile(dir)
+	case modeTemplates:
+		p.keyTemplates(dir)
 	}
 }

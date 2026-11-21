@@ -24,6 +24,9 @@ import (
 //go:embed assets/hook.sh
 var hookScript string
 
+//go:embed assets/statusline.sh
+var statusLineScript string
+
 //go:embed assets/tmux.conf
 var tmuxConf string
 
@@ -101,6 +104,37 @@ func HookScript(stateDir, shell string) string {
 	return strings.Replace(s, "#!/bin/dash", "#!"+shell, 1)
 }
 
+// StatusLineScript is the status-line script ready for a state directory.
+func StatusLineScript(stateDir, shell string) string {
+	s := strings.ReplaceAll(statusLineScript, "__STATE_DIR__", stateDir)
+	return strings.Replace(s, "#!/bin/dash", "#!"+shell, 1)
+}
+
+// AddStatusLine makes Claude Code run the Argus status line, unless the
+// file already has a status line of its own (that one is kept).
+func AddStatusLine(data []byte, command string) ([]byte, bool, error) {
+	if len(strings.TrimSpace(string(data))) == 0 {
+		data = []byte("{}")
+	}
+	if !gjson.ValidBytes(data) {
+		return nil, false, fmt.Errorf("invalid JSON")
+	}
+	if gjson.GetBytes(data, "statusLine").Exists() {
+		return data, false, nil
+	}
+	js, err := sjson.SetRawBytes(data, "statusLine", []byte(fmt.Sprintf(`{"type":"command","command":%q}`, command)))
+	return js, err == nil, err
+}
+
+// RemoveStatusLine removes the status line if it is the Argus one.
+func RemoveStatusLine(data []byte, command string) ([]byte, bool) {
+	if !strings.Contains(gjson.GetBytes(data, "statusLine.command").String(), command) {
+		return data, false
+	}
+	js, err := sjson.DeleteBytes(data, "statusLine")
+	return js, err == nil
+}
+
 // TmuxConf is the tmux configuration ready for a state directory.
 func TmuxConf(stateDir string) string {
 	s := strings.ReplaceAll(tmuxConf, "__STATE_DIR__", stateDir)
@@ -142,7 +176,7 @@ func OpencodePlugin(dir string) string {
 
 // Install writes the hook, plugin and tmux config and hooks the agents up.
 func Install(p paths.Paths, out io.Writer) error {
-	for _, d := range []string{p.State, p.Share, p.Conf, p.Opencode()} {
+	for _, d := range []string{p.State, p.Share, p.Conf, p.Opencode(), p.Usage()} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return err
 		}
@@ -151,6 +185,9 @@ func Install(p paths.Paths, out io.Writer) error {
 		return err
 	}
 	fmt.Fprintln(out, "hook:            ", p.Hook())
+	if err := os.WriteFile(p.StatusLine(), []byte(StatusLineScript(p.State, Shell())), 0o755); err != nil {
+		return err
+	}
 	if err := os.WriteFile(p.TmuxConf(), []byte(TmuxConf(p.State)), 0o644); err != nil {
 		return err
 	}
@@ -173,6 +210,9 @@ func Install(p paths.Paths, out io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(out, "hooks %-11s %s %s\n", t.Tool+":", t.File, msg)
+		if t.Tool == "claude" {
+			fmt.Fprintf(out, "statusLine:        %s %s\n", t.File, addStatusLineFile(t.File, p.StatusLine()))
+		}
 	}
 	if len(cfg.ProfilesFor("opencode")) > 0 {
 		dir := p.OpencodePlugins()
@@ -209,6 +249,14 @@ func Uninstall(p paths.Paths, out io.Writer) error {
 			}
 		}
 		fmt.Fprintf(out, "hooks %-11s %s (-%d)\n", t.Tool+":", t.File, n)
+		if t.Tool == "claude" {
+			if cur, err := os.ReadFile(t.File); err == nil {
+				if js, ok := RemoveStatusLine(cur, p.StatusLine()); ok {
+					_ = writeWithBackup(t.File, cur, js)
+					fmt.Fprintln(out, i18n.T("install.removed"), "statusLine", t.File)
+				}
+			}
+		}
 	}
 	plugin := filepath.Join(p.OpencodePlugins(), PluginFile)
 	if err := os.Remove(plugin); err == nil {
@@ -290,6 +338,26 @@ func RemoveHooks(data []byte, hook string, events []Event) ([]byte, int, error) 
 		js, _ = sjson.Delete(js, "hooks")
 	}
 	return []byte(js), removed, nil
+}
+
+func addStatusLineFile(file, command string) string {
+	data, err := os.ReadFile(file)
+	if err != nil && !os.IsNotExist(err) {
+		return err.Error()
+	}
+	js, added, err := AddStatusLine(data, command)
+	switch {
+	case err != nil:
+		return i18n.T("install.badJSON", file)
+	case !added && strings.Contains(gjson.GetBytes(data, "statusLine.command").String(), command):
+		return i18n.T("install.already")
+	case !added:
+		return i18n.T("install.ownStatusLine")
+	}
+	if err := writeWithBackup(file, data, js); err != nil {
+		return err.Error()
+	}
+	return i18n.T("install.added", 1)
 }
 
 func addHooksFile(t Target, hook string) (string, error) {

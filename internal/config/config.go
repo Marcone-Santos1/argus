@@ -82,12 +82,23 @@ type Rule struct {
 }
 
 type Config struct {
-	Roots       []string  `toml:"roots"`
-	Depth       int       `toml:"depth"`
-	MaxSessions int       `toml:"max_sessions"`
-	Notify      []string  `toml:"notify"`
-	Profiles    []Profile `toml:"profile"`
-	Rules       []Rule    `toml:"rule"`
+	Roots       []string   `toml:"roots"`
+	Depth       int        `toml:"depth"`
+	MaxSessions int        `toml:"max_sessions"`
+	Notify      []string   `toml:"notify"`
+	Profiles    []Profile  `toml:"profile"`
+	Rules       []Rule     `toml:"rule"`
+	Templates   []Template `toml:"template"`
+}
+
+// Template is a session ready to start with one key (t): a folder, a
+// profile and an optional first message.
+type Template struct {
+	Name    string `toml:"name"`
+	Dir     string `toml:"dir"`
+	Profile string `toml:"profile"`
+	Prompt  string `toml:"prompt,omitempty"`
+	Saved   bool   `toml:"-"` // created from the panel (templates.toml), so it can be deleted there
 }
 
 // DefaultTOML is the config.toml written by install.
@@ -135,19 +146,89 @@ command = "opencode"
 # group = "PERSONAL"
 # command = "codex"
 
+# Templates: t starts one (folder, profile and an optional first message).
+# The panel also saves the ones you create there in templates.toml.
+# [[template]]
+# name = "praeko review"
+# dir = "~/Projects/praeko"
+# profile = "claude-work"
+# prompt = "Read ONDE-PARAMOS.md and tell me what is next."
+
 # Optional rules: a folder containing the text opens with the profile.
 # [[rule]]
 # match = "/work-"
 # profile = "claude-work"
 `
 
-// Load reads config.toml (or the default when it does not exist) and expands "~".
+// Load reads config.toml (or the default when it does not exist) and expands
+// "~". The templates saved from the panel (templates.toml, next to it) are
+// added after the ones config.toml declares.
 func Load(path, home string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		data = []byte(DefaultTOML)
 	}
-	return Parse(string(data), home)
+	c, err := Parse(string(data), home)
+	if err != nil {
+		return nil, err
+	}
+	c.Templates = append(c.Templates, LoadTemplates(filepath.Join(filepath.Dir(path), TemplatesFile), home)...)
+	return c, nil
+}
+
+// TemplatesFile holds the templates created from the panel.
+const TemplatesFile = "templates.toml"
+
+// LoadTemplates reads templates.toml (nil when missing or invalid).
+func LoadTemplates(path, home string) []Template {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var f struct {
+		Templates []Template `toml:"template"`
+	}
+	if _, err := toml.Decode(string(data), &f); err != nil {
+		return nil
+	}
+	for i := range f.Templates {
+		f.Templates[i].Dir = expandHome(f.Templates[i].Dir, home)
+		f.Templates[i].Saved = true
+	}
+	return f.Templates
+}
+
+// SaveTemplates rewrites templates.toml with the panel's templates.
+func SaveTemplates(path string, ts []Template) error {
+	var b strings.Builder
+	b.WriteString("# Templates created in the Argus panel (t). Edit or delete freely.\n")
+	enc := toml.NewEncoder(&b)
+	var f struct {
+		Templates []Template `toml:"template"`
+	}
+	for _, t := range ts {
+		if t.Saved {
+			f.Templates = append(f.Templates, t)
+		}
+	}
+	if err := enc.Encode(f); err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, []byte(b.String()), 0o644); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+func expandHome(s, home string) string {
+	if s == "~" {
+		return home
+	}
+	if strings.HasPrefix(s, "~/") {
+		return filepath.Join(home, s[2:])
+	}
+	return s
 }
 
 // Parse interprets a config.toml.
@@ -183,6 +264,9 @@ func Parse(data, home string) (*Config, error) {
 	}
 	if len(c.Profiles) == 0 {
 		c.Profiles = []Profile{{Name: "claude", Group: "PERSONAL", Command: "claude"}}
+	}
+	for i := range c.Templates {
+		c.Templates[i].Dir = expand(c.Templates[i].Dir)
 	}
 	for i := range c.Profiles {
 		if c.Profiles[i].Group == "" {

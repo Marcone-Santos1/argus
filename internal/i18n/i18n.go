@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 )
 
 // Lang is a supported language.
@@ -62,4 +63,16 @@ func Yes(k string) bool {
 		return true
 	}
 	return false
+}
+
+// Weekday is a short day name in the current language ("Fri", "sex").
+func Weekday(d time.Weekday) string {
+	names := [2][7]string{
+		{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"},
+		{"dom", "seg", "ter", "qua", "qui", "sex", "sáb"},
+	}
+	if current == EN {
+		return names[0][d]
+	}
+	return names[1][d]
 }

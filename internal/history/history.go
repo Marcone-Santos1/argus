@@ -324,6 +324,17 @@ func ParseOpencodeRows(out, profile string) []Entry {
 	return es
 }
 
+// PromptArgs start a new conversation with a first message.
+func PromptArgs(tool, prompt string) []string {
+	switch tool {
+	case Opencode:
+		return []string{"--prompt", prompt}
+	case "gemini":
+		return []string{"-i", prompt}
+	}
+	return []string{prompt}
+}
+
 // ResumeArgs are the arguments each tool uses to resume a conversation.
 func ResumeArgs(tool, id string) []string {
 	if tool == Opencode {

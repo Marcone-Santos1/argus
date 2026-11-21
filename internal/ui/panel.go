@@ -26,6 +26,7 @@ import (
 	"github.com/Marcone-Santos1/argus/internal/status"
 	"github.com/Marcone-Santos1/argus/internal/sysmon"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
+	"github.com/Marcone-Santos1/argus/internal/usage"
 )
 
 // Deps is what the panel uses from the rest of the program.
@@ -61,6 +62,7 @@ const (
 	modeInput
 	modeHelp
 	modeAnswer
+	modeTemplates
 )
 
 // Panel is the panel state.
@@ -102,6 +104,18 @@ type Panel struct {
 	prompts      map[string]prompt // what each waiting session asks
 	captureC     chan string       // waiting sessions whose screen should be read
 	answering    string            // session being answered (key y)
+
+	asyncC       chan func()           // results of background work, applied on the main loop
+	git          map[string]gitState   // per folder
+	reply        map[string]string     // per session: start of Claude's last reply
+	usage        map[string]usage.Info // per session: the status line's last report
+	extrasSeen   map[string]bool       // sessions whose git/reply were read once
+	tplFrom      string                // session to save as a template (t)
+	tplSel       int
+	firstPrompt  string // first message of the next session started (templates)
+	searchCancel func()
+	searching    bool
+	contentHits  map[string]string // history search: conversation key -> snippet
 
 	inputPrompt string
 	input       string
@@ -173,6 +187,8 @@ func New(d Deps) *Panel {
 	return &Panel{
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
+		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
@@ -184,7 +200,7 @@ func (p *Panel) Run() error {
 	if p.d.Self == "" {
 		return errors.New(i18n.T("cli.panelOutside"))
 	}
-	for _, d := range []string{p.d.Paths.State, p.d.Paths.Opencode()} {
+	for _, d := range []string{p.d.Paths.State, p.d.Paths.Opencode(), p.d.Paths.Usage()} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			return err
 		}
@@ -208,7 +224,7 @@ func (p *Panel) Run() error {
 		return err
 	}
 	defer watcher.Close()
-	for _, d := range []string{p.d.Paths.State, p.d.Paths.Opencode()} {
+	for _, d := range []string{p.d.Paths.State, p.d.Paths.Opencode(), p.d.Paths.Usage()} {
 		if err := watcher.Add(d); err != nil {
 			return err
 		}
@@ -223,6 +239,7 @@ func (p *Panel) Run() error {
 
 	p.resize()
 	p.oc = status.ReadOpencode(p.d.Paths.Opencode())
+	p.loadUsage()
 	p.reconcile()
 	p.offerRestore()
 	p.render()
@@ -246,6 +263,8 @@ func (p *Panel) Run() error {
 		case <-watcher.Errors:
 		case <-ticker.C:
 			p.tick()
+		case f := <-p.asyncC:
+			f()
 		case id := <-p.captureC:
 			p.capturePrompt(id)
 		case r := <-p.recentC:
@@ -369,8 +388,19 @@ func (p *Panel) reconcile() {
 	p.rebuildItems(key)
 	for i := range p.agents {
 		p.syncTitle(i)
+		if a := p.agents[i]; !p.extrasSeen[a.ID] {
+			p.extrasSeen[a.ID] = true
+			p.refreshExtras(a)
+		}
 	}
 	p.saveSnapshot()
+	for id := range p.usage {
+		if !live[id] {
+			delete(p.usage, id)
+			delete(p.reply, id)
+			_ = os.Remove(filepath.Join(p.d.Paths.Usage(), id))
+		}
+	}
 
 	// State files of sessions that no longer exist.
 	if entries, err := os.ReadDir(p.d.Paths.State); err == nil {
@@ -410,6 +440,7 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	p.lastState[a.ID] = st
 	if seen && prev == status.Working && st != status.Working {
 		p.refreshRecent() // the turn ended: the conversation may have a (new) title
+		p.refreshExtras(*a)
 	}
 	if st == status.Waiting && (prev != st || !seen) {
 		p.capturePromptSoon(a.ID)
@@ -474,6 +505,12 @@ func (p *Panel) focusedOn(a agent) bool {
 
 func (p *Panel) handleFS(ev fsnotify.Event) {
 	name := filepath.Base(ev.Name)
+	if filepath.Dir(ev.Name) == p.d.Paths.Usage() {
+		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+			p.readUsage(ev.Name)
+		}
+		return
+	}
 	if filepath.Dir(ev.Name) == p.d.Paths.Opencode() {
 		if oc, ok := status.ReadOpencodeFile(ev.Name); ok {
 			p.oc[oc.Session] = oc
@@ -527,6 +564,13 @@ func (p *Panel) syncTitle(i int) {
 		tmuxColor(color), icon, esc(p.sessionText(a)),
 		p.accountHex(a.Profile), esc(p.tag(a.Profile)),
 		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))
+	if in, ok := p.profileUsage(a.Profile); ok && !in.FiveHour.Expired(time.Now()) {
+		c := pctColor(in.FiveHour.Percent)
+		if c == "" {
+			c = cQuiet
+		}
+		title += fmt.Sprintf("#[fg=#6c717c]· 5h #[fg=%s]%.0f%% ", tmuxColor(c), in.FiveHour.Percent)
+	}
 	if p.titles[a.Pane] == title {
 		return
 	}

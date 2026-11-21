@@ -56,6 +56,8 @@ func (p *Panel) render() {
 		lines = p.viewHistory()
 	case modeHelp:
 		lines = p.viewHelp()
+	case modeTemplates:
+		lines = p.viewTemplates()
 	default:
 		lines = p.viewList()
 	}
@@ -334,8 +336,18 @@ func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []st
 	if a.Worktree != "" {
 		where += " ⑂"
 	}
-	second := line(w, bg, bar, sp("      ", ""), sp(tag, p.accountColor(a.Profile)), sp(" · "+where, cFaint))
-	return []string{first, second}
+	parts := []span{sp("      ", ""), sp(tag, p.accountColor(a.Profile)), sp(" · "+where, cFaint)}
+	if g := p.gitText(a.Dir); g != "" {
+		parts = append(parts, sp(" · ", cFaint), sp(g, cQuiet))
+	}
+	if in, ok := p.usage[a.ID]; ok && in.Context >= 0 {
+		parts = append(parts, sp(" · ctx ", cFaint), sp(fmt.Sprintf("%.0f%%", in.Context), ctxColor(in.Context)))
+	}
+	rows := []string{first, line(w, bg, append([]span{bar}, parts...)...)}
+	if r := p.reply[a.ID]; r != "" && replyShown(a) {
+		rows = append(rows, line(w, bg, bar, sp("      ↳ ", cFaint), sp(r, "\x1b[3m"+cQuiet)))
+	}
+	return rows
 }
 
 // folderRow is a folder of past conversations: name, how many, the newest
@@ -511,9 +523,23 @@ func (p *Panel) viewProfiles() []string {
 
 func (p *Panel) viewHistory() []string {
 	w := p.w
+	status2 := ""
+	if p.searching {
+		status2 = "  " + i18n.T("history.searching")
+	} else if n := len(p.contentHits); n > 0 {
+		inText := 0
+		for _, e := range p.histShown {
+			if p.isContentHit(e) {
+				inText++
+			}
+		}
+		if inText > 0 {
+			status2 = "  " + i18n.T("history.inText", inText)
+		}
+	}
 	body := []string{
 		bold + fit(" "+i18n.T("history.title", len(p.histAll)), w) + reset, "",
-		fit(" > "+p.filter+"█", w), "",
+		line(w, "", sp(" > "+p.filter+"█", ""), sp(status2, cQuiet)), "",
 	}
 	if len(p.histShown) == 0 {
 		body = append(body, dim+fit(i18n.T("list.nothing"), w)+reset)
@@ -524,7 +550,11 @@ func (p *Panel) viewHistory() []string {
 	tagW := 4
 	titleW := w - 1 - projW - 2 - tagW - 1 - ageW - 1
 	for i, e := range p.histShown {
-		line := " " + fit(filepath.Base(e.Dir), projW) + "  " + fit(e.Title, titleW) + " " +
+		title := e.Title
+		if p.isContentHit(e) {
+			title = "≈ " + title
+		}
+		line := " " + fit(filepath.Base(e.Dir), projW) + "  " + fit(title, titleW) + " " +
 			fit(p.entryTag(e), tagW) + fmt.Sprintf("%*s ", ageW, status.Short(now.Sub(e.Updated)))
 		switch {
 		case i == p.histSel:
@@ -535,6 +565,11 @@ func (p *Panel) viewHistory() []string {
 		body = append(body, line)
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
+	if p.histSel < len(p.histShown) {
+		if snip, ok := p.contentHits[p.histShown[p.histSel].Key()]; ok && p.isContentHit(p.histShown[p.histSel]) {
+			foot = append(foot, line(w, "", sp(" ❝ ", cAccent), sp(snip, cQuiet)))
+		}
+	}
 	foot = append(foot, wrapHints(tr("hint.typeHistory", "hint.pick", "hint.resume", "hint.back"), w)...)
 	return p.layoutClick(body, listTargets(4, len(p.histShown)), foot, p.histSel+4)
 }
@@ -562,6 +597,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"r", "help.rename"},
 	{"a", "help.account"},
 	{"y", "help.answer"},
+	{"t", "help.templates"},
 	{"< >", "help.width"},
 	{"click", "help.click"},
 	{"Esc", "help.hide"},
@@ -587,7 +623,7 @@ func (p *Panel) viewHelp() []string {
 // only when there was load in the last 16 s.
 func (p *Panel) statsLines(w int) []string {
 	r := p.reading
-	var groups [][]span
+	groups := p.usageGroups(time.Now())
 	calm := func(color string) string {
 		if color == cDone {
 			return ""
@@ -703,4 +739,16 @@ func (p *Panel) answerLines(w int) []string {
 		out = append(out, line(w, "", sp("   "+mark, cAccent), sp(fmt.Sprintf("%d  %s", i+1, o), style)))
 	}
 	return append(out, line(w, "", sp(" "+i18n.T("prompt.keys"), cFaint)))
+}
+
+// ctxColor: the context gets yellow from 70% and red from 90% (Claude
+// compacts it near the end).
+func ctxColor(pct float64) string {
+	switch {
+	case pct >= 90:
+		return cEnded
+	case pct >= 70:
+		return cWorking
+	}
+	return cQuiet
 }

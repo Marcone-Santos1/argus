@@ -147,6 +147,7 @@ func (p *Panel) openPicker() {
 }
 
 func (p *Panel) closePicker() {
+	p.stopSearch()
 	p.mode = modeList
 	p.setZoom(false)
 }
@@ -231,13 +232,16 @@ func (p *Panel) askProfile(choices []config.Profile, def string) {
 
 // startAgent creates the session, honoring the limit of simultaneous sessions.
 func (p *Panel) startAgent(dir string, prof config.Profile, resume *history.Entry) {
+	prompt := p.firstPrompt // a template's first message, for this session only
+	p.firstPrompt = ""
 	wt := p.worktreeOf
 	if len(p.agents) >= p.d.Config.MaxSessions {
 		p.closePicker()
 		p.confirm(i18n.T("msg.limit", len(p.agents), p.d.Config.MaxSessions),
-			func() { p.createAgent(dir, prof, resume, wt) })
+			func() { p.firstPrompt = prompt; p.createAgent(dir, prof, resume, wt) })
 		return
 	}
+	p.firstPrompt = prompt
 	p.createAgent(dir, prof, resume, wt)
 }
 
@@ -266,6 +270,11 @@ func (p *Panel) launch(id string, prof config.Profile, resume *history.Entry) (e
 		for _, a := range history.ResumeArgs(resume.Tool, resume.ID) {
 			line += " " + shellQuote(a)
 		}
+	} else if p.firstPrompt != "" {
+		for _, a := range history.PromptArgs(prof.Label(), p.firstPrompt) {
+			line += " " + shellQuote(a)
+		}
+		p.firstPrompt = ""
 	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
@@ -384,10 +393,17 @@ func matchTerms(hay, filter string) bool {
 	return true
 }
 
+// applyHistFilter shows the conversations whose title, folder or account
+// match, then the ones found by their text (when a search has finished).
 func (p *Panel) applyHistFilter() {
 	p.histShown = p.histShown[:0]
 	for _, e := range p.histAll {
 		if matchTerms(e.Dir+" "+e.Title+" "+e.Profile+" "+e.Tool, p.filter) {
+			p.histShown = append(p.histShown, e)
+		}
+	}
+	for _, e := range p.histAll {
+		if p.isContentHit(e) {
 			p.histShown = append(p.histShown, e)
 		}
 	}

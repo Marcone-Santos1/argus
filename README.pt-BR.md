@@ -20,7 +20,8 @@ Painel de terminal para rodar várias sessões de [Claude Code](https://claude.c
 
 - **Cada sessão é o próprio CLI** num terminal de verdade: memória, MCPs, skills, hooks e permissões continuam iguais.
 - **As sessões abertas vêm primeiro**, com o título da conversa e a cor da conta, e o status de cada uma: ● trabalhando, ◐ esperando você, ✓ terminou. Quando o status muda, chega um aviso do macOS.
-- **Conversas antigas** do Claude Code e do opencode ficam agrupadas por pasta abaixo delas: Enter (ou →) abre a pasta, Enter numa conversa a retoma.
+- **Conversas antigas** do Claude Code e do opencode ficam agrupadas por pasta abaixo delas: Enter (ou →) abre a pasta, Enter numa conversa a retoma. O histórico (h) busca pelo título enquanto você digita e, logo depois, no texto de todas as conversas (marcadas com ≈).
+- **Embaixo de cada sessão**: conta, pasta, branch do git com arquivos alterados e commits não enviados, quanto do contexto está ocupado e, quando ela termina, a primeira linha da última resposta do Claude. O rodapé mostra o uso de 5 horas e de 7 dias de cada conta do Claude, lido da status line do Claude Code (o Argus instala uma que não imprime nada; se você já tiver a sua, ela é mantida).
 - **Vários perfis**, por exemplo duas contas do Claude (`CLAUDE_CONFIG_DIR`) e o opencode.
 - **Worktrees:** `w` abre uma sessão num branch novo, ao lado do repositório, para duas sessões não se atropelarem.
 - **Desempenho medido:** sem daemon, painel sem polling, hook em shell puro. O rodapé mostra CPU e processos criados por minuto e avisa se algo disparar; `argus bench` mede tudo.
@@ -53,6 +54,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
 | `Enter` | entra na sessão, abre a pasta, ou retoma a conversa antiga |
 | `→ ←` | abre / fecha uma pasta de conversas antigas |
+| `t` | modelos: abre uma sessão guardada (pasta, conta e primeira mensagem); com uma sessão selecionada, guarda ela como modelo |
 | `< >` | estreita / alarga a lista (ou arraste a borda; a largura fica guardada) |
 | clique | seleciona (a sessão aparece à direita); clique duplo entra, ou retoma a conversa |
 | `Ctrl+\` | alterna entre a lista e a sessão (de qualquer lugar) |
