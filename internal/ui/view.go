@@ -188,11 +188,8 @@ func (p *Panel) footer() []string {
 		foot = append(foot, line(w, "", sp(i18n.T("list.storm", p.reading.PerMinute), red)))
 	}
 	foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
-	if p.reading.CPU >= 0 && p.reading.PerMinute >= 0 {
-		foot = append(foot, line(w, "",
-			sp(" CPU ", cQuiet), sp(spark(p.cpuHist), loadColor(p.reading.CPU)),
-			sp(fmt.Sprintf(" %.0f%%", p.reading.CPU), ""),
-			sp("   "+i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", p.reading.PerMinute), "")))
+	if stats := p.statsSpans(); stats != nil {
+		foot = append(foot, line(w, "", stats...))
 	}
 	hints := tr("hint.enter", "hint.toggle", "hint.tab", "hint.new", "hint.help")
 	for _, h := range wrapHints(hints, w) {
@@ -466,4 +463,31 @@ func (p *Panel) viewHelp() []string {
 	body = append(body, "", dim+fit(" "+i18n.T("help.status"), w)+reset)
 	foot := []string{dim + strings.Repeat("─", w) + reset, dim + fit(" "+i18n.T("help.close.any"), w) + reset}
 	return layout(body, foot, p.h, 0)
+}
+
+// statsSpans is the footer's machine line: CPU and memory, each with a
+// sparkline of the last 16 s, and processes created per minute.
+func (p *Panel) statsSpans() []span {
+	r := p.reading
+	var out []span
+	if r.CPU >= 0 {
+		out = append(out, sp(" CPU ", cQuiet), sp(spark(p.cpuHist), loadColor(r.CPU)), sp(fmt.Sprintf(" %.0f%%", r.CPU), ""))
+	}
+	if m := r.MemPercent(); m >= 0 {
+		out = append(out, sp("   Mem ", cQuiet), sp(spark(p.memHist), memColor(m)),
+			sp(" "+gb(r.MemUsed)+"/"+gb(r.MemTotal)+" GB", ""))
+	}
+	if r.PerMinute >= 0 {
+		out = append(out, sp("   "+i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", r.PerMinute), ""))
+	}
+	return out
+}
+
+// gb formats bytes as gigabytes with one decimal ("11.2"), or none from 100 up.
+func gb(b uint64) string {
+	v := float64(b) / (1 << 30)
+	if v >= 100 {
+		return fmt.Sprintf("%.0f", v)
+	}
+	return fmt.Sprintf("%.1f", v)
 }

@@ -16,3 +16,13 @@ func TestParseProcStat(t *testing.T) {
 		t.Skip("ns_last_pid not readable here")
 	}
 }
+
+func TestParseMeminfo(t *testing.T) {
+	used, total, ok := parseMeminfo("MemTotal:       16000 kB\nMemFree:  100 kB\nMemAvailable:    4000 kB\n")
+	if !ok || total != 16000*1024 || used != 12000*1024 {
+		t.Fatalf("used=%d total=%d ok=%v", used, total, ok)
+	}
+	if _, _, ok := parseMeminfo("MemTotal: 10 kB\n"); ok {
+		t.Fatal("needs MemAvailable")
+	}
+}

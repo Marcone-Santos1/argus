@@ -126,3 +126,25 @@ var ansiRe = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 // stripANSI removes color codes, leaving only the visible text.
 func stripANSI(s string) string { return ansiRe.ReplaceAllString(s, "") }
+
+// memColor: memory gets yellow from 75% and red from 90% (macOS keeps memory
+// busy on purpose, so the thresholds are higher than for CPU).
+func memColor(pct float64) string {
+	switch {
+	case pct >= 90:
+		return cEnded
+	case pct >= 75:
+		return cWorking
+	default:
+		return cDone
+	}
+}
+
+// pushLast appends v and keeps the last sparkLen values.
+func pushLast(vals []float64, v float64) []float64 {
+	vals = append(vals, v)
+	if len(vals) > sparkLen {
+		vals = vals[len(vals)-sparkLen:]
+	}
+	return vals
+}

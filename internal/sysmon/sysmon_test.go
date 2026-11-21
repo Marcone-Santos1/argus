@@ -86,3 +86,16 @@ func TestTopFromPS(t *testing.T) {
 		t.Fatalf("top: %v", got)
 	}
 }
+
+func TestMemReading(t *testing.T) {
+	r := New().Sample()
+	if r.MemTotal == 0 || r.MemUsed == 0 || r.MemUsed > r.MemTotal {
+		t.Fatalf("memória: used=%d total=%d", r.MemUsed, r.MemTotal)
+	}
+	if p := r.MemPercent(); p <= 0 || p > 100 {
+		t.Fatalf("percentual: %.1f", p)
+	}
+	if (Reading{}).MemPercent() != -1 {
+		t.Fatal("sem dado: -1")
+	}
+}

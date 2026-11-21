@@ -56,3 +56,37 @@ func nextPID() (int, bool) {
 	n, err := strconv.Atoi(strings.TrimSpace(string(b)))
 	return n, err == nil
 }
+
+// memInfo reads used (total minus available) and total memory in bytes.
+func memInfo() (used, total uint64, ok bool) {
+	b, err := os.ReadFile("/proc/meminfo")
+	if err != nil {
+		return 0, 0, false
+	}
+	return parseMeminfo(string(b))
+}
+
+func parseMeminfo(s string) (used, total uint64, ok bool) {
+	var avail uint64
+	var haveT, haveA bool
+	for _, l := range strings.Split(s, "\n") {
+		f := strings.Fields(l)
+		if len(f) < 2 {
+			continue
+		}
+		n, err := strconv.ParseUint(f[1], 10, 64)
+		if err != nil {
+			continue
+		}
+		switch f[0] {
+		case "MemTotal:":
+			total, haveT = n*1024, true
+		case "MemAvailable:":
+			avail, haveA = n*1024, true
+		}
+	}
+	if !haveT || !haveA || avail > total {
+		return 0, 0, false
+	}
+	return total - avail, total, true
+}

@@ -106,6 +106,7 @@ type Panel struct {
 
 	reading sysmon.Reading
 	cpuHist []float64 // last CPU readings, for the footer sparkline
+	memHist []float64 // last memory readings (% in use)
 
 	hiddenFolders int               // folders with old conversations left out of the list
 	prevLines     []string          // what is on screen, to redraw only what changed
@@ -250,10 +251,10 @@ func (p *Panel) tick() {
 	}
 	p.reading = p.d.Monitor.Sample()
 	if p.reading.CPU >= 0 {
-		p.cpuHist = append(p.cpuHist, p.reading.CPU)
-		if len(p.cpuHist) > sparkLen {
-			p.cpuHist = p.cpuHist[len(p.cpuHist)-sparkLen:]
-		}
+		p.cpuHist = pushLast(p.cpuHist, p.reading.CPU)
+	}
+	if m := p.reading.MemPercent(); m >= 0 {
+		p.memHist = pushLast(p.memHist, m)
 	}
 	if p.reading.Storm && !p.stormWarned {
 		p.stormWarned = true

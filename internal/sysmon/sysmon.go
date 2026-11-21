@@ -22,6 +22,8 @@ const (
 type Reading struct {
 	CPU        float64 // % of the whole machine, 0-100; <0 = no data
 	PerMinute  float64 // processes created per minute; <0 = no data
+	MemUsed    uint64  // bytes in use (as Activity Monitor counts it); 0 = no data
+	MemTotal   uint64  // installed memory in bytes
 	Storm      bool    // rate above StormRate for StormFor
 	StormSince time.Time
 }
@@ -69,6 +71,9 @@ func (m *Monitor) Sample() Reading {
 			r.CPU = float64(b-m.busy) / float64(t-m.total) * 100
 		}
 		m.busy, m.total = b, t
+	}
+	if u, t, ok := memInfo(); ok {
+		r.MemUsed, r.MemTotal = u, t
 	}
 	now := m.Now()
 	pid := m.Probe()
@@ -148,4 +153,12 @@ func (m *Monitor) FirstPID() int {
 		return 0
 	}
 	return m.samples[0].pid
+}
+
+// MemPercent is the share of memory in use, 0-100; <0 without data.
+func (r Reading) MemPercent() float64 {
+	if r.MemTotal == 0 {
+		return -1
+	}
+	return float64(r.MemUsed) / float64(r.MemTotal) * 100
 }
