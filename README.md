@@ -63,7 +63,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | click | selects (a session shows on the right); double click enters, or resumes a conversation |
 | `Ctrl+\` | switch between the list and the session (from anywhere) |
 | `Tab` | jump to the next session waiting for you |
-| `n` | new session: project and profile |
+| `n` | new session: project and profile; type a path starting with `/` or `~` to pick any folder (Tab goes in) |
 | `w` | new session in a worktree of the selected repository |
 | `h` | full history, searchable |
 | `/` | filter the list |

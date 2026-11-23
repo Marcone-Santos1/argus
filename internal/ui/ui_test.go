@@ -2,6 +2,8 @@ package ui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -297,5 +299,41 @@ func TestRememberedProfileWins(t *testing.T) {
 	}
 	if es[2].Profile != "x" {
 		t.Errorf("same id in another tool is another conversation: %q", es[2].Profile)
+	}
+}
+
+func TestPickAnyFolder(t *testing.T) {
+	home := t.TempDir()
+	for _, d := range []string{"Code/api", "Code/Apps", "Code/.hidden", "Docs"} {
+		if err := os.MkdirAll(filepath.Join(home, d), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	_ = os.WriteFile(filepath.Join(home, "Code", "app.txt"), nil, 0o644)
+	names := func(ps []project) string {
+		var out []string
+		for _, p := range ps {
+			out = append(out, p.Rel)
+		}
+		return strings.Join(out, " ")
+	}
+	if got := names(browseDirs("~/Code/ap", home, 10)); got != "~/Code/api/ ~/Code/Apps/" {
+		t.Fatalf("prefix: %q", got)
+	}
+	if got := names(browseDirs("~/Code/", home, 10)); got != "~/Code/ ~/Code/api/ ~/Code/Apps/" {
+		t.Fatalf("inside a folder: %q", got)
+	}
+	if got := names(browseDirs("~/Code/.h", home, 10)); got != "~/Code/.hidden/" {
+		t.Fatalf("hidden with a dot: %q", got)
+	}
+	p := testPanel(t)
+	p.d.Paths.Home = home
+	p.openPicker()
+	for _, k := range []string{"~", "/", "C"} {
+		p.keyPickDir(k)
+	}
+	p.keyPickDir("tab")
+	if p.filter != "~/Code/" || len(p.filtered) == 0 || p.filtered[0].Path != filepath.Join(home, "Code") {
+		t.Fatalf("tab goes into the folder: %q %+v", p.filter, p.filtered)
 	}
 }

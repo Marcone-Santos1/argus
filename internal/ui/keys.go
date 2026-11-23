@@ -109,6 +109,13 @@ func (p *Panel) keyPickDir(k string) {
 		if p.pickSel < len(p.filtered)-1 {
 			p.pickSel++
 		}
+	case "tab":
+		// Completes a typed path with the chosen folder, to go inside it.
+		if len(p.filtered) > 0 {
+			p.filter = strings.TrimSuffix(p.d.Paths.Pretty(p.filtered[p.pickSel].Path), "/") + "/"
+			p.pickSel = 0
+			p.applyFilter()
+		}
 	case "enter":
 		if len(p.filtered) == 0 {
 			return

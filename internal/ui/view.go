@@ -606,7 +606,11 @@ func (p *Panel) viewPicker() []string {
 		body = append(body, line)
 	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
-	foot = append(foot, wrapHints(tr("hint.type", "hint.pick", "hint.ok", "hint.cancel", "hint.used"), w)...)
+	hints := []string{"hint.type", "hint.path", "hint.pick", "hint.ok", "hint.cancel", "hint.used"}
+	if isPathQuery(p.filter) {
+		hints = []string{"hint.tabInto", "hint.pick", "hint.ok", "hint.cancel"}
+	}
+	foot = append(foot, wrapHints(tr(hints...), w)...)
 	return p.layoutClick(body, listTargets(4, len(p.filtered)), foot, p.pickSel+4)
 }
 

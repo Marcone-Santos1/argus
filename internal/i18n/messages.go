@@ -54,6 +54,8 @@ var messages = map[string][2]string{
 	"hint.zoom":        {"z zoom", "z cheia"},
 	"hint.quit":        {"q quit", "q sai"},
 	"hint.type":        {"type to filter", "digite para filtrar"},
+	"hint.path":        {"/ or ~ any folder", "/ ou ~ qualquer pasta"},
+	"hint.tabInto":     {"tab goes in", "tab entra"},
 	"hint.pick":        {"↑↓ choose", "↑↓ escolher"},
 	"hint.ok":          {"⏎ ok", "⏎ ok"},
 	"hint.cancel":      {"esc cancel", "esc cancela"},

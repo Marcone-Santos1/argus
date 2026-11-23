@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -411,6 +412,11 @@ func (p *Panel) applyHistFilter() {
 }
 
 func (p *Panel) applyFilter() {
+	if isPathQuery(p.filter) {
+		p.filtered = browseDirs(p.filter, p.d.Paths.Home, maxBrowse)
+		p.pickSel = clamp(p.pickSel, len(p.filtered))
+		return
+	}
 	p.filtered = p.filtered[:0]
 	for _, pr := range p.projects {
 		if matchTerms(pr.Rel, p.filter) {
@@ -418,6 +424,66 @@ func (p *Panel) applyFilter() {
 		}
 	}
 	p.pickSel = clamp(p.pickSel, len(p.filtered))
+}
+
+// maxBrowse is how many folders a typed path lists.
+const maxBrowse = 300
+
+// isPathQuery: text starting with / or ~ browses the disk instead of
+// filtering the known projects.
+func isPathQuery(q string) bool {
+	return strings.HasPrefix(q, "/") || strings.HasPrefix(q, "~")
+}
+
+// browseDirs lists the folders a typed path points at: the path itself when
+// it is a folder (and ends in /), then the subfolders of its parent that
+// start with the last part (case-insensitive). Hidden ones only show when
+// the last part starts with a dot.
+func browseDirs(q, home string, limit int) []project {
+	full := q
+	if full == "~" || strings.HasPrefix(full, "~/") {
+		full = home + full[1:]
+	}
+	dir, part := full, ""
+	if !strings.HasSuffix(full, "/") {
+		dir, part = filepath.Dir(full), filepath.Base(full)
+	}
+	pretty := func(path string) string {
+		if rel, err := filepath.Rel(home, path); err == nil && !strings.HasPrefix(rel, "..") {
+			if rel == "." {
+				return "~/"
+			}
+			return "~/" + rel + "/"
+		}
+		return strings.TrimSuffix(path, "/") + "/"
+	}
+	var out []project
+	if part == "" {
+		if fi, err := os.Stat(dir); err == nil && fi.IsDir() {
+			out = append(out, project{Path: filepath.Clean(dir), Rel: pretty(filepath.Clean(dir))})
+		}
+	}
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return out
+	}
+	sort.SliceStable(ents, func(i, j int) bool { return strings.ToLower(ents[i].Name()) < strings.ToLower(ents[j].Name()) })
+	low := strings.ToLower(part)
+	for _, e := range ents {
+		n := e.Name()
+		full := filepath.Join(dir, n)
+		if strings.HasPrefix(n, ".") && !strings.HasPrefix(part, ".") {
+			continue
+		}
+		if !strings.HasPrefix(strings.ToLower(n), low) || !isDir(full, e) {
+			continue
+		}
+		out = append(out, project{Path: full, Rel: pretty(full)})
+		if len(out) >= limit {
+			break
+		}
+	}
+	return out
 }
 
 func clamp(i, n int) int {
