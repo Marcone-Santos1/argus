@@ -132,6 +132,7 @@ var messages = map[string][2]string{
 	"prompt.title":        {"Answer %s:", "Responder %s:"},
 	"prompt.keys":         {"1-9 choose · ⏎ the highlighted one · esc cancel", "1-9 escolhe · ⏎ o destacado · esc cancela"},
 	"msg.renamePrompt":    {"Name in the list (empty = profile's text):", "Nome na lista (vazio = texto do perfil):"},
+	"msg.confirmKeys":     {"y or Enter yes · any other key no", "s ou Enter sim · qualquer outra tecla não"},
 	"msg.limit":           {"There are already %d sessions (limit %d). Open one more? (y/n)", "Já são %d sessões (limite %d). Abrir mais uma? (s/n)"},
 	"msg.badID":           {"invalid conversation id", "id de conversa inválido"},
 	"msg.noOtherAccount":  {"no other profile for %s in config.toml", "nenhum outro perfil de %s no config.toml"},

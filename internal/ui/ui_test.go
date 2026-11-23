@@ -225,6 +225,9 @@ func TestKeyFilterAndInput(t *testing.T) {
 
 	called := false
 	p.confirm("ok?", func() { called = true })
+	if top := visible(strings.Join(p.frame()[:2], "")); !strings.Contains(top, "ok?") {
+		t.Fatalf("the question shows on top of the list: %q", top)
+	}
 	p.handleKey("n")
 	if called || p.mode != modeList {
 		t.Fatal("n cancels the confirmation")

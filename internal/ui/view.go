@@ -46,6 +46,12 @@ func fit(s string, w int) string {
 }
 
 func (p *Panel) render() {
+	lines := p.frame()
+	p.draw(lines)
+}
+
+// frame is the screen's lines for the current mode.
+func (p *Panel) frame() []string {
 	var lines []string
 	switch p.mode {
 	case modePickDir:
@@ -64,7 +70,17 @@ func (p *Panel) render() {
 		lines = p.viewTimeline()
 	default:
 		lines = p.viewList()
+		if p.mode == modeConfirm && len(lines) >= 2 {
+			// The question also goes on top: at the foot of a long list it
+			// was easy to miss, and any other key declines it.
+			lines[0] = line(p.w, bgWait, sp(" "+p.confirmMsg, "\x1b[1m"+cWaiting))
+			lines[1] = line(p.w, bgWait, sp(" "+i18n.T("msg.confirmKeys"), cQuiet))
+		}
 	}
+	return lines
+}
+
+func (p *Panel) draw(lines []string) {
 	// Redraw only the lines that changed since the last frame.
 	if len(p.prevLines) != p.h {
 		p.prevLines = make([]string, p.h)
