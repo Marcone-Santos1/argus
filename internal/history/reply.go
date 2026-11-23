@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/tidwall/gjson"
 )
@@ -76,4 +77,35 @@ func firstLine(s string) string {
 		}
 	}
 	return ""
+}
+
+// agentStale is how long a background agent's transcript may go unwritten
+// before it is taken for gone (its conversation was closed mid-run).
+const agentStale = 30 * time.Minute
+
+// BackgroundAgents counts a conversation's background subagents still
+// running, from the small meta file Claude Code keeps next to each one:
+// "finished" is set when the agent ends. One stat per agent, and a read only
+// for the recent ones.
+func BackgroundAgents(projects, id string, now time.Time) int {
+	path := TranscriptPath(projects, id)
+	if path == "" {
+		return 0
+	}
+	metas, _ := filepath.Glob(filepath.Join(strings.TrimSuffix(path, ".jsonl"), "subagents", "*.meta.json"))
+	n := 0
+	for _, m := range metas {
+		fi, err := os.Stat(strings.TrimSuffix(m, ".meta.json") + ".jsonl")
+		if err != nil || now.Sub(fi.ModTime()) > agentStale {
+			continue
+		}
+		data, err := os.ReadFile(m)
+		if err != nil {
+			continue
+		}
+		if gjson.GetBytes(data, "requestShape").String() == "background" && !gjson.GetBytes(data, "finished").Bool() {
+			n++
+		}
+	}
+	return n
 }

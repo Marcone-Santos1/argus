@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"path/filepath"
 	"time"
 
 	"github.com/Marcone-Santos1/argus/internal/history"
@@ -102,4 +103,32 @@ func (p *Panel) awake() int {
 		}
 	}
 	return n
+}
+
+// ---------- background agents (Claude Code's subagents run in the background) ----------
+
+// backgroundAgents counts a Claude session's background agents still running.
+func (p *Panel) backgroundAgents(a agent) int {
+	prof, ok := p.profileOf(a.Profile)
+	if !ok || prof.Label() != history.Claude || a.Session == "" {
+		return 0
+	}
+	return history.BackgroundAgents(filepath.Join(prof.ClaudeConfigDir(p.d.Paths.Home), "projects"), a.Session, time.Now())
+}
+
+// bgCheck re-reads, every 10 s, the sessions held working by background
+// agents, so they turn done when the last one ends.
+func (p *Panel) bgCheck() {
+	if len(p.bgAgents) == 0 {
+		return
+	}
+	if p.bgTick++; p.bgTick%5 != 0 {
+		return
+	}
+	for i, a := range p.agents {
+		if p.bgAgents[a.ID] > 0 {
+			p.refreshStatus(i, true)
+			p.syncTitle(i)
+		}
+	}
 }

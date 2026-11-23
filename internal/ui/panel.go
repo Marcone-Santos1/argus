@@ -116,10 +116,12 @@ type Panel struct {
 	usage        map[string]usage.Info // per session: the status line's last report
 	extrasSeen   map[string]bool       // sessions whose git/reply were read once
 	seenAt       map[string]time.Time  // last time each session was on the right (hibernation)
-	shells       map[string]int        // per session: commands still running in the background
-	sized        map[string]string     // hidden session pane -> size its window was given
-	res          map[string]sessRes    // per session: CPU and memory of its processes
-	cpuPrev      map[int]uint64        // CPU time per process at the last reading
+	bgAgents     map[string]int        // background agents still running after the turn ended
+	bgTick       int
+	shells       map[string]int     // per session: commands still running in the background
+	sized        map[string]string  // hidden session pane -> size its window was given
+	res          map[string]sessRes // per session: CPU and memory of its processes
+	cpuPrev      map[int]uint64     // CPU time per process at the last reading
 	cpuPrevAt    time.Time
 	cpuSeries    map[string][]float64 // per session: CPU readings of the last minute
 	ovSel        int                  // overview: selected tile
@@ -204,7 +206,7 @@ func New(d Deps) *Panel {
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
-		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, shells: map[string]int{}, sized: map[string]string{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
@@ -318,6 +320,7 @@ func (p *Panel) tick() {
 	p.reading = p.d.Monitor.Sample()
 	p.sampleSessions(time.Now())
 	p.hibernateIdle(time.Now())
+	p.bgCheck()
 	if p.mode == modeOverview {
 		p.captureScreens()
 	}
@@ -481,10 +484,25 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 		}
 	}
 	prev, seen := p.lastState[a.ID]
+	// A turn that ended with background agents still running: the session
+	// keeps working. Read when the turn ends (or the panel starts) and, while
+	// some run, again on the tick (bgCheck).
+	if st == status.Done && a.Asleep.IsZero() && (!seen || prev == status.Working || p.bgAgents[a.ID] > 0) {
+		if n := p.backgroundAgents(*a); n > 0 {
+			p.bgAgents[a.ID] = n
+		} else {
+			delete(p.bgAgents, a.ID)
+		}
+	} else if st != status.Done {
+		delete(p.bgAgents, a.ID)
+	}
+	if st == status.Done && p.bgAgents[a.ID] > 0 {
+		st = status.Working
+	}
 	a.Status, a.Since = st, since
 	a.Subagents = 0
 	if st == status.Working {
-		a.Subagents = status.Subagents(p.d.Paths.Status(a.ID))
+		a.Subagents = max(status.Subagents(p.d.Paths.Status(a.ID)), p.bgAgents[a.ID])
 	}
 	p.lastState[a.ID] = st
 	if !seen || prev != st {

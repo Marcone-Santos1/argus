@@ -147,3 +147,33 @@ func TestHibernateWithRealTmux(t *testing.T) {
 		t.Fatalf("running again, mark cleared: %q", out)
 	}
 }
+
+// A turn that ends with a background agent running keeps the session
+// working, read from Claude Code's own files (works without the newer hook).
+func TestBackgroundAgentHoldsWorking(t *testing.T) {
+	p := testPanel(t)
+	sub := filepath.Join(p.d.Paths.Home, ".claude", "projects", "-p-api", "conv-1", "subagents")
+	if err := os.MkdirAll(sub, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(sub, "..", "..", "conv-1.jsonl"), []byte("{}\n"), 0o644)
+	meta := filepath.Join(sub, "agent-x.meta.json")
+	_ = os.WriteFile(meta, []byte(`{"requestShape":"background"}`), 0o644)
+	_ = os.WriteFile(filepath.Join(sub, "agent-x.jsonl"), []byte("{}\n"), 0o644)
+	_ = os.MkdirAll(p.d.Paths.State, 0o755)
+	_ = status.Write(p.d.Paths.Status("a1"), status.Done)
+
+	p.agents = []agent{{ID: "a1", Profile: "personal", Session: "conv-1"}}
+	p.lastState["a1"] = status.Working // the turn just ended
+	p.refreshStatus(0, false)
+	if a := p.agents[0]; a.Status != status.Working || a.Subagents != 1 {
+		t.Fatalf("held working with 1 agent: %+v", a)
+	}
+	_ = os.WriteFile(meta, []byte(`{"requestShape":"background","finished":true}`), 0o644)
+	for i := 0; i < 5; i++ {
+		p.bgCheck()
+	}
+	if a := p.agents[0]; a.Status != status.Done || len(p.bgAgents) != 0 {
+		t.Fatalf("done once the agent ends: %+v %v", a, p.bgAgents)
+	}
+}
