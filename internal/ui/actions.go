@@ -63,6 +63,12 @@ func (p *Panel) showSelected() bool {
 
 func (p *Panel) focusSession() {
 	p.swapC = nil
+	if a := p.current(); a != nil && !a.Asleep.IsZero() {
+		if !p.wake(a) {
+			return
+		}
+		p.refreshStatus(p.items[p.sel].agent, false)
+	}
 	if p.showSelected() {
 		_, _ = p.d.Tmux.Run("select-pane", "-t", p.displayPane)
 	}
@@ -236,9 +242,9 @@ func (p *Panel) startAgent(dir string, prof config.Profile, resume *history.Entr
 	prompt := p.firstPrompt // a template's first message, for this session only
 	p.firstPrompt = ""
 	wt := p.worktreeOf
-	if len(p.agents) >= p.d.Config.MaxSessions {
+	if p.awake() >= p.d.Config.MaxSessions {
 		p.closePicker()
-		p.confirm(i18n.T("msg.limit", len(p.agents), p.d.Config.MaxSessions),
+		p.confirm(i18n.T("msg.limit", p.awake(), p.d.Config.MaxSessions),
 			func() { p.firstPrompt = prompt; p.createAgent(dir, prof, resume, wt) })
 		return
 	}

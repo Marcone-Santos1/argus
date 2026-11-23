@@ -415,6 +415,12 @@ func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []st
 	pr, asking := p.prompts[a.ID]
 	reply := p.reply[a.ID]
 	switch {
+	case !a.Asleep.IsZero():
+		left = []span{sp(i18n.T("list.asleep"), cFaint)}
+		if reply != "" {
+			left = append(left, sp(" · ", cFaint), sp(reply, "\x1b[3m"+cFaint))
+		}
+		ctx = false
 	case waiting && asking && (pr.Context != "" || pr.Question != ""):
 		q := pr.Context
 		if q == "" {

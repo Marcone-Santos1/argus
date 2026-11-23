@@ -83,6 +83,8 @@ Each session row shows its profile's text, `claude per` by default. Set `display
 
 `~/.config/argus/config.toml`: project folders, profiles, per-folder profile rules, the session limit and which status changes notify you (`notify = ["waiting", "done"]`).
 
+A finished Claude session left untouched (not working, not on screen, nothing running behind it) for `hibernate_after` (2 hours by default) is hibernated: its process is closed to free its memory, and it stays in the list with ◌. Enter resumes the conversation where it stopped. Hibernated sessions do not count toward the session limit. `hibernate_after = "0"` turns it off.
+
 If the machine restarts or the tmux server dies, the next `argus` offers to reopen the sessions that were open, each resuming its conversation in its account.
 
 ## How it works

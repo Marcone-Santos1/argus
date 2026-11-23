@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/BurntSushi/toml"
 )
@@ -82,13 +83,16 @@ type Rule struct {
 }
 
 type Config struct {
-	Roots       []string   `toml:"roots"`
-	Depth       int        `toml:"depth"`
-	MaxSessions int        `toml:"max_sessions"`
-	Notify      []string   `toml:"notify"`
-	Profiles    []Profile  `toml:"profile"`
-	Rules       []Rule     `toml:"rule"`
-	Templates   []Template `toml:"template"`
+	Roots       []string `toml:"roots"`
+	Depth       int      `toml:"depth"`
+	MaxSessions int      `toml:"max_sessions"`
+	// HibernateAfter closes a finished session's process after this long
+	// without use ("2h"); it resumes on Enter. "0" turns it off.
+	HibernateAfter string     `toml:"hibernate_after"`
+	Notify         []string   `toml:"notify"`
+	Profiles       []Profile  `toml:"profile"`
+	Rules          []Rule     `toml:"rule"`
+	Templates      []Template `toml:"template"`
 }
 
 // Template is a session ready to start with one key (t): a folder, a
@@ -110,6 +114,11 @@ depth = 2
 
 # Above this, starting a session asks for confirmation.
 max_sessions = 8
+
+# A finished session untouched for this long is hibernated: its process is
+# closed (freeing its memory) and it stays in the list; Enter resumes the
+# conversation. "0" turns it off.
+hibernate_after = "2h"
 
 # macOS/desktop notifications when a session changes to these states
 # (waiting = waiting for you, done = finished). An empty list turns them off.
@@ -259,6 +268,9 @@ func Parse(data, home string) (*Config, error) {
 	if c.MaxSessions < 1 {
 		c.MaxSessions = 8
 	}
+	if !md.IsDefined("hibernate_after") {
+		c.HibernateAfter = "2h"
+	}
 	if !md.IsDefined("notify") {
 		c.Notify = []string{"waiting", "done"}
 	}
@@ -375,4 +387,17 @@ func (p *Prefs) Save() error {
 		return err
 	}
 	return os.Rename(tmp, p.path)
+}
+
+// Hibernate is how long a finished session waits before being hibernated
+// (0 = never).
+func (c *Config) Hibernate() time.Duration {
+	if c.HibernateAfter == "" || c.HibernateAfter == "0" {
+		return 0
+	}
+	d, err := time.ParseDuration(c.HibernateAfter)
+	if err != nil || d < 0 {
+		return 0
+	}
+	return d
 }

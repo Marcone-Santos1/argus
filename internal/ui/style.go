@@ -97,6 +97,8 @@ func statusStyle(s string) (icon, color, word string) {
 		return "✓", cDone, "st.done"
 	case status.Ended:
 		return "✕", cEnded, "st.ended"
+	case stAsleep:
+		return "◌", cFaint, "st.asleep"
 	default:
 		return "○", cQuiet, "st.idle"
 	}

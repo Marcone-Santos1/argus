@@ -82,6 +82,8 @@ Cada sessão aparece na lista com o texto do perfil, `claude pes` por padrão. P
 
 `~/.config/argus/config.toml`: pastas de projetos, perfis, regras de perfil por pasta, limite de sessões e quais mudanças de status geram aviso (`notify = ["waiting", "done"]`).
 
+Uma sessão do Claude que terminou e ficou sem uso (sem trabalhar, fora da tela e sem nada rodando por trás) por `hibernate_after` (2 horas por padrão) hiberna: o processo fecha para liberar a memória e ela continua na lista com ◌. Enter retoma a conversa de onde parou. Sessões hibernadas não contam no limite de sessões. `hibernate_after = "0"` desliga.
+
 Se o Mac reiniciar ou o servidor do tmux cair, o próximo `argus` oferece reabrir as sessões que estavam abertas, cada uma retomando a conversa na sua conta.
 
 ## Como funciona

@@ -49,7 +49,8 @@ type agent struct {
 	PID                          int // the pane's process (to find its background shells)
 	Status                       string
 	Since                        time.Time
-	Subagents                    int // running subagents (Claude hook)
+	Subagents                    int       // running subagents (Claude hook)
+	Asleep                       time.Time // hibernated since (zero = running)
 }
 
 type mode int
@@ -114,6 +115,7 @@ type Panel struct {
 	reply        map[string]string     // per session: start of Claude's last reply
 	usage        map[string]usage.Info // per session: the status line's last report
 	extrasSeen   map[string]bool       // sessions whose git/reply were read once
+	seenAt       map[string]time.Time  // last time each session was on the right (hibernation)
 	shells       map[string]int        // per session: commands still running in the background
 	sized        map[string]string     // hidden session pane -> size its window was given
 	res          map[string]sessRes    // per session: CPU and memory of its processes
@@ -202,7 +204,7 @@ func New(d Deps) *Panel {
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
-		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, shells: map[string]int{}, sized: map[string]string{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
@@ -315,6 +317,7 @@ func (p *Panel) tick() {
 	}
 	p.reading = p.d.Monitor.Sample()
 	p.sampleSessions(time.Now())
+	p.hibernateIdle(time.Now())
 	if p.mode == modeOverview {
 		p.captureScreens()
 	}
@@ -362,12 +365,15 @@ func (p *Panel) reconcile() {
 				placeholders = append(placeholders, pn)
 			}
 		case tmux.RoleAgent:
-			if pn.Dead {
+			if pn.Dead && pn.Asleep == 0 {
 				_, _ = p.d.Tmux.Run("kill-pane", "-t", pn.ID)
 				continue
 			}
 			a := agent{ID: pn.AgentID, Pane: pn.ID, Profile: pn.Profile, Dir: pn.Dir, Name: pn.Name,
 				Session: pn.Session, Worktree: pn.Worktree, Created: pn.Created, Displayed: pn.InMain(), PID: pn.PID}
+			if pn.Asleep > 0 {
+				a.Asleep, a.PID = time.Unix(pn.Asleep, 0), 0
+			}
 			agents = append(agents, a)
 			live[a.ID] = true
 		}
@@ -462,7 +468,9 @@ func (p *Panel) isOpencode(a agent) bool {
 func (p *Panel) refreshStatus(i int, notify bool) {
 	a := &p.agents[i]
 	st, since := status.Read(p.d.Paths.Status(a.ID))
-	if sid := status.Session(p.d.Paths.Status(a.ID)); sid != "" && sid != a.Session {
+	if !a.Asleep.IsZero() {
+		st, since = stAsleep, a.Asleep
+	} else if sid := status.Session(p.d.Paths.Status(a.ID)); sid != "" && sid != a.Session {
 		// The hook saw the conversation id (new session, /resume or /clear).
 		a.Session = sid
 		_ = p.d.Tmux.SetPaneOptions(a.Pane, "@argus_session", sid)
