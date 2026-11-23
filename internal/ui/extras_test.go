@@ -48,30 +48,30 @@ func TestSessionExtrasFit(t *testing.T) {
 	p.agents = []agent{a}
 	for _, w := range []int{30, 60, 120} {
 		rows := p.agentRows(a, 1, false, now, w)
-		if len(rows) != 3 {
-			t.Fatalf("done session: title, details and last reply: %d rows", len(rows))
+		if len(rows) != 2 {
+			t.Fatalf("done session: title and last reply: %d rows", len(rows))
 		}
-		for _, l := range rows {
+		for _, l := range append(rows, p.groupHeader(a.Dir, true, w)) {
 			if width(visible(l)) != w {
 				t.Fatalf("w=%d: %q", w, visible(l))
 			}
 		}
 	}
-	got := visible(strings.Join(p.agentRows(a, 1, false, now, 160), "\n"))
-	for _, want := range []string{"⎇ feature/um-branch-comprido ✎12 ↑3", "ctx 91%", "↳ Corrigi o teste"} {
+	got := visible(strings.Join(append(p.agentRows(a, 1, false, now, 160), p.groupHeader(a.Dir, false, 160)), "\n"))
+	for _, want := range []string{"⎇ feature/um-branch-comprido ✎12 ↑3", "ctx ▰▰▰▰▰ 91%", "↳ Corrigi o teste", "per"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %q", want, got)
 		}
 	}
 	a.Status = status.Working
-	if len(p.agentRows(a, 1, false, now, 60)) != 2 {
-		t.Fatal("the last reply hides while it works")
+	if rows := visible(strings.Join(p.agentRows(a, 1, false, now, 60), "")); strings.Contains(rows, "Corrigi") || !strings.Contains(rows, "ctx") {
+		t.Fatalf("the last reply hides while it works, the context shows: %q", rows)
 	}
 	foot := ""
 	for _, l := range p.statsLines(80) {
 		foot += visible(l)
 	}
-	if !strings.Contains(foot, "per 5h 64% ↻") {
+	if !strings.Contains(foot, "per 5h ▰▰▰▱▱ 64% ") {
 		t.Fatalf("account usage in the footer: %q", foot)
 	}
 }
@@ -94,5 +94,16 @@ func TestTemplatesKeys(t *testing.T) {
 	p.handleKey("esc")
 	if p.mode != modeList {
 		t.Fatal("esc closes")
+	}
+}
+
+func TestUntilText(t *testing.T) {
+	for d, want := range map[time.Duration]string{
+		35 * time.Minute: "35m", 2*time.Hour + 48*time.Minute: "2h48",
+		4*24*time.Hour + 6*time.Hour: "4d6h", -time.Minute: "0m",
+	} {
+		if got := untilText(d); got != want {
+			t.Errorf("untilText(%v) = %q, want %q", d, got, want)
+		}
 	}
 }

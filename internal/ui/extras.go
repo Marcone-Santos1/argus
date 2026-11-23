@@ -105,42 +105,56 @@ func pctColor(pct float64) string {
 	return ""
 }
 
-// usageGroups are the footer's account parts: "pes 5h 34% · 7d 12%", with
-// the reset time once a window is half used.
-func (p *Panel) usageGroups(now time.Time) [][]span {
-	var out [][]span
+// usageGroups are the footer's account parts, one list per account: "pes 5h
+// ▰▱▱▱▱ 21% 2h48" and "7d ▰▱▱▱▱ 8% 4d6h", with the time left until each
+// window resets.
+func (p *Panel) usageGroups(now time.Time) [][][]span {
+	var out [][][]span
 	for _, pr := range p.d.Config.Profiles {
 		in, ok := p.profileUsage(pr.Name)
 		if !ok {
 			continue
 		}
-		g := []span{sp(pr.Tag(), p.accountColor(pr.Name))}
+		var gs [][]span
 		add := func(label string, l *usage.Limit) {
 			if l == nil {
 				return
 			}
+			pct, left := l.Percent, ""
 			if l.Expired(now) {
-				g = append(g, sp(" "+label+" ", cQuiet), sp("0%", ""))
-				return
+				pct = 0
+			} else if !l.Resets.IsZero() {
+				left = fmt.Sprintf(" %-5s", untilText(l.Resets.Sub(now)))
 			}
-			g = append(g, sp(" "+label+" ", cQuiet), sp(fmt.Sprintf("%.0f%%", l.Percent), pctColor(l.Percent)))
-			if l.Percent >= 50 && !l.Resets.IsZero() {
-				g = append(g, sp(" ↻"+resetText(l.Resets, now), cQuiet))
+			color := pctColor(pct)
+			barColor := color
+			if barColor == "" {
+				barColor = cDone
 			}
+			on, off := cells(pct, 5)
+			gs = append(gs, []span{sp(label+" ", cFaint), sp(on, barColor), sp(off, cFaint),
+				sp(fmt.Sprintf(" %2.0f%%", pct), color), sp(left, cQuiet)})
 		}
 		add("5h", in.FiveHour)
 		add("7d", in.SevenDay)
-		out = append(out, g)
+		if len(gs) > 0 {
+			gs[0] = append([]span{sp(pr.Tag()+" ", p.accountColor(pr.Name))}, gs[0]...)
+			out = append(out, gs)
+		}
 	}
 	return out
 }
 
-// resetText is when a window resets: "14:20" today, "sex 09:00" later.
-func resetText(t, now time.Time) string {
-	if t.YearDay() == now.YearDay() && t.Year() == now.Year() {
-		return t.Format("15:04")
+// untilText is a short countdown: "35m", "2h48", "4d6h".
+func untilText(d time.Duration) string {
+	m := int(d.Minutes())
+	switch {
+	case m < 60:
+		return fmt.Sprintf("%dm", max(m, 0))
+	case m < 24*60:
+		return fmt.Sprintf("%dh%02d", m/60, m%60)
 	}
-	return i18n.Weekday(t.Weekday()) + " " + t.Format("15:04")
+	return fmt.Sprintf("%dd%dh", m/(24*60), m%(24*60)/60)
 }
 
 // ---------- templates (key t) ----------

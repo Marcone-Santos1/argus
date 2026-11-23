@@ -128,9 +128,9 @@ func TestRebuildItemsGroupsByFolder(t *testing.T) {
 		}
 		return strings.Join(got, "\n")
 	}
-	// Sessions first; then one row per folder, newest first; the
-	// conversation already open is not repeated.
-	want := "session a1\nsession a2\nsession a3\nfolder /p/docs 1\nfolder /p/api 4"
+	// Sessions first, grouped by folder; then one row per folder, newest
+	// first; the conversation already open is not repeated.
+	want := "session a1\nsession a3\nsession a2\nfolder /p/docs 1\nfolder /p/api 4"
 	if got := list(); got != want {
 		t.Fatalf("list:\n%s\nwant:\n%s", got, want)
 	}

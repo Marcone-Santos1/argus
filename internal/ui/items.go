@@ -61,6 +61,10 @@ func (p *Panel) rebuildItems(keep string) {
 	open := map[string]bool{}
 	old := p.sel
 	p.items = p.items[:0]
+	// Sessions are grouped by folder; folders keep the order of their oldest
+	// session, sessions keep theirs inside the folder.
+	var groupOrder []string
+	groups := map[string][]int{}
 	for i, a := range p.agents {
 		if a.Session != "" {
 			open[a.Session] = true
@@ -68,7 +72,15 @@ func (p *Panel) rebuildItems(keep string) {
 		if p.listFilter != "" && !matchTerms(a.Dir+" "+a.Name+" "+a.Profile+" "+p.titleOf[a.Session], p.listFilter) {
 			continue
 		}
-		p.items = append(p.items, item{dir: a.Dir, agent: i})
+		if _, ok := groups[a.Dir]; !ok {
+			groupOrder = append(groupOrder, a.Dir)
+		}
+		groups[a.Dir] = append(groups[a.Dir], i)
+	}
+	for _, d := range groupOrder {
+		for _, i := range groups[d] {
+			p.items = append(p.items, item{dir: d, agent: i})
+		}
 	}
 	var dirs []string
 	byDir := map[string][]history.Entry{}

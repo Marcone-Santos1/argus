@@ -6,6 +6,7 @@ package usage
 import (
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/tidwall/gjson"
@@ -23,6 +24,7 @@ type Info struct {
 	FiveHour *Limit
 	SevenDay *Limit
 	Context  float64 // % of the context window in use; -1 = unknown
+	Model    string  // short model name: "opus-5.5"
 	At       time.Time
 }
 
@@ -48,6 +50,7 @@ func Parse(data []byte, at time.Time) (Info, bool) {
 	in := Info{Session: js.Get("session_id").String(), Context: -1, At: at}
 	in.FiveHour = limit(js.Get("rate_limits.five_hour"))
 	in.SevenDay = limit(js.Get("rate_limits.seven_day"))
+	in.Model = ShortModel(js.Get("model.display_name").String())
 	if c := js.Get("context_window.used_percentage"); c.Exists() {
 		in.Context = c.Float()
 	}
@@ -84,4 +87,13 @@ func limit(v gjson.Result) *Limit {
 // longer hold).
 func (l *Limit) Expired(now time.Time) bool {
 	return l == nil || (!l.Resets.IsZero() && now.After(l.Resets))
+}
+
+// ShortModel turns a display name into a compact one: "Opus 5.5 (1M
+// context)" becomes "opus-5.5".
+func ShortModel(name string) string {
+	if i := strings.Index(name, "("); i >= 0 {
+		name = name[:i]
+	}
+	return strings.ToLower(strings.Join(strings.Fields(name), "-"))
 }

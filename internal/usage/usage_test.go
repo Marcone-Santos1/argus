@@ -29,3 +29,11 @@ func TestParse(t *testing.T) {
 		t.Fatal("a window that reset is expired")
 	}
 }
+
+func TestShortModel(t *testing.T) {
+	for in, want := range map[string]string{"Opus 5.5": "opus-5.5", "Sonnet 5.5 (1M context)": "sonnet-5.5", "": ""} {
+		if got := ShortModel(in); got != want {
+			t.Errorf("ShortModel(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

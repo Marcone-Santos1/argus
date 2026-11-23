@@ -116,9 +116,6 @@ func (p *Panel) viewList() []string {
 	focusLine := -1
 	now := time.Now()
 	num := 0
-	if len(p.agents) > 0 || p.listFilter == "" {
-		body = append(body, section(i18n.T("sec.open"), w))
-	}
 	if len(p.agents) == 0 && p.listFilter == "" {
 		body = append(body, line(w, "", sp(i18n.T("list.empty1"), cQuiet)), line(w, "", sp(i18n.T("list.empty2"), cQuiet)))
 	}
@@ -136,12 +133,26 @@ func (p *Panel) viewList() []string {
 			targets = append(targets, t)
 		}
 	}
+	selDir := ""
+	if p.sel >= 0 && p.sel < len(p.items) && p.items[p.sel].agent >= 0 && p.mode != modeFilter {
+		selDir = p.items[p.sel].dir
+	}
+	group := ""
 	for idx, it := range p.items {
 		mark(-1)
 		sel := idx == p.sel && p.mode != modeFilter
 		if it.agent < 0 && !recents {
 			recents = true
-			body = append(body, "", section(i18n.T("sec.recent"), w))
+			body = append(body, "", line(w, "", sp(" "+i18n.T("sec.recent"), cFaint)))
+		}
+		if it.agent >= 0 && it.dir != group {
+			if group != "" {
+				body = append(body, "")
+				mark(-1)
+			}
+			group = it.dir
+			body = append(body, p.groupHeader(it.dir, it.dir == selDir, w))
+			mark(idx) // a click on the folder selects its first session
 		}
 		if idx == p.sel {
 			focusLine = len(body)
@@ -152,7 +163,8 @@ func (p *Panel) viewList() []string {
 			a := p.agents[it.agent]
 			body = append(body, p.agentRows(a, num, sel, now, w)...)
 			if pr, ok := p.prompts[a.ID]; ok && a.Status == status.Waiting {
-				body = append(body, p.promptLines(pr, w)...)
+				pl := p.promptLines(pr, w)
+				body = append(body, pl[len(pl)-1]) // the options; the question is on the row
 			}
 		case it.folder:
 			body = append(body, p.folderRow(it, sel, now, w))
@@ -304,54 +316,134 @@ func rowBar(sel, waiting bool) (bg string, bar span) {
 	return "", sp(" ", "")
 }
 
-// agentRows is an open session in two lines: status, number, title and
-// state; under it, the account and the folder.
+// groupHeader is the folder line above its sessions: the name and, on the
+// right, its git state. soft: the selected session is in this folder.
+func (p *Panel) groupHeader(dir string, soft bool, w int) string {
+	bg := ""
+	if soft {
+		bg = bgSoft
+	}
+	name := p.folderName(dir)
+	right := p.gitText(dir)
+	return lineLR(w, bg, []span{sp(" ", ""), sp(name, cFolder)}, []span{sp(right, cQuiet), sp(" ", "")})
+}
+
+// spinFrames turn while a session works. The frame comes from the clock, so
+// it only moves when the panel redraws for another reason (no extra timer).
+var spinFrames = []string{"◜", "◝", "◞", "◟"}
+
+// agentRows is an open session in two lines. First: number, status icon,
+// title and, on the right, model and time. Second: what it is asking (when
+// waiting), its last reply (when done) or the context in use, and the
+// account tag on the right.
 func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []string {
-	icon, color, word := statusStyle(a.Status)
+	icon, color, _ := statusStyle(a.Status)
+	if a.Status == status.Working {
+		icon = spinFrames[int(now.UnixMilli()/500)%len(spinFrames)]
+	}
+	waiting := a.Status == status.Waiting
 	el := ""
 	if !a.Since.IsZero() {
 		el = status.Short(now.Sub(a.Since))
 	}
-	right := i18n.T(word) + " " + el
-	if w < 44 { // narrow: no status word
-		right = el
+	in, hasUsage := p.usage[a.ID]
+	timeStyle := cQuiet
+	if waiting {
+		timeStyle = cWaiting
 	}
-	tag := p.tag(a.Profile)
+	right := []span{}
+	if hasUsage && in.Model != "" && w >= 40 {
+		right = append(right, sp(in.Model+" ", cFaint))
+	}
+	right = append(right, sp(el, timeStyle), sp(" ", ""))
 	n := " "
 	if num <= 9 {
 		n = fmt.Sprint(num)
 	}
 	textStyle := ""
-	if a.Displayed || sel {
+	switch {
+	case waiting:
+		textStyle = cWaiting
+	case a.Displayed || sel:
 		textStyle = "\x1b[1m"
 	}
-	bg, bar := rowBar(sel, a.Status == status.Waiting)
-	used := 1 + 3 + 3 // bar + icon + number
-	textW := max(w-used-width(right)-2, 1)
-	first := line(w, bg, bar,
-		sp(" "+icon+" ", color), sp(n+"  ", cQuiet),
-		sp(fit(p.sessionText(a), textW), textStyle), sp("  ", ""),
-		sp(right, color), sp(" ", ""))
-	where := p.d.Paths.Pretty(a.Dir)
+	bg, bar := rowBar(sel, waiting)
+	first := lineLR(w, bg, []span{bar, sp(n, cFaint), sp(" "+icon+" ", color), sp(p.sessionText(a)+"  ", textStyle)}, right)
+
+	bg2 := bg
+	bar2 := sp(" ", "")
+	switch {
+	case waiting:
+		bar2 = sp("▌", cAmber)
+	case sel:
+		bg2 = bgSoft
+	}
+	var left []span
+	ctx := hasUsage && in.Context >= 0
+	pr, asking := p.prompts[a.ID]
+	reply := p.reply[a.ID]
+	switch {
+	case waiting && asking && (pr.Context != "" || pr.Question != ""):
+		q := pr.Context
+		if q == "" {
+			q = pr.Question
+		}
+		left = []span{sp(q, cWaiting)}
+	case reply != "" && replyShown(a):
+		left = []span{sp("↳ ", cFaint), sp(reply, "\x1b[3m"+cQuiet)}
+	case ctx:
+		left = ctxSpans(in.Context)
+		ctx = false
+	}
+	var r2 []span
+	if ctx && in.Context >= 70 { // the reply took the line; a full context still shows
+		r2 = append(ctxSpans(in.Context), sp("  ", ""))
+	}
 	if a.Worktree != "" {
-		where += " ⑂"
+		r2 = append(r2, sp("⑂ ", cQuiet))
 	}
-	parts := []span{sp("      ", ""), sp(tag, p.accountColor(a.Profile)), sp(" · "+where, cFaint)}
-	if g := p.gitText(a.Dir); g != "" {
-		parts = append(parts, sp(" · ", cFaint), sp(g, cQuiet))
-	}
-	if in, ok := p.usage[a.ID]; ok && in.Context >= 0 {
-		parts = append(parts, sp(" · ctx ", cFaint), sp(fmt.Sprintf("%.0f%%", in.Context), ctxColor(in.Context)))
-	}
-	rows := []string{first, line(w, bg, append([]span{bar}, parts...)...)}
-	if r := p.reply[a.ID]; r != "" && replyShown(a) {
-		rows = append(rows, line(w, bg, bar, sp("      ↳ ", cFaint), sp(r, "\x1b[3m"+cQuiet)))
-	}
-	return rows
+	r2 = append(r2, sp(p.tag(a.Profile), p.accountColor(a.Profile)), sp(" ", ""))
+	second := lineLR(w, bg2, append([]span{bar2, sp("    ", "")}, append(left, sp("  ", ""))...), r2)
+	return []string{first, second}
 }
 
-// folderRow is a folder of past conversations: name, how many, the newest
-// title and its age. ▸ / ▾ tell whether it is open.
+// ctxSpans is "ctx ▰▰▰▱▱ 56%": yellow from 70%, red from 90%.
+func ctxSpans(pct float64) []span {
+	color := ctxColor(pct)
+	barColor := cFaint
+	if color != cQuiet {
+		barColor = color
+	}
+	on, off := cells(pct, 5)
+	return []span{sp("ctx ", cFaint), sp(on, barColor), sp(off, cFaint), sp(fmt.Sprintf(" %.0f%%", pct), color)}
+}
+
+// cells is a small bar of n cells for a percentage.
+func cells(pct float64, n int) (on, off string) {
+	full := min(max(int(pct/100*float64(n)+0.5), 0), n)
+	if pct > 0 && full == 0 {
+		full = 1
+	}
+	return strings.Repeat("▰", full), strings.Repeat("▱", n-full)
+}
+
+// lineLR is a line with spans on the left and on the right; the left side is
+// cut with "…" so the right side always shows.
+func lineLR(w int, bg string, left, right []span) string {
+	rw := 0
+	for _, s := range right {
+		rw += width(s.text)
+	}
+	if rw+1 >= w {
+		return line(w, bg, right...)
+	}
+	// One column always separates the sides, even when the left is cut.
+	return line(w-rw-1, bg, left...) + line(rw+1, bg, append([]span{sp(" ", "")}, right...)...)
+}
+
+// folderRow is a folder of past conversations: name, how many and the age of
+// the newest. ▸ / ▾ tell whether it is open; on a wide list, the newest
+// title shows too.
 func (p *Panel) folderRow(it item, sel bool, now time.Time, w int) string {
 	bg, bar := rowBar(sel, false)
 	arrow := "▸"
@@ -360,13 +452,13 @@ func (p *Panel) folderRow(it item, sel bool, now time.Time, w int) string {
 	}
 	right := fmt.Sprintf("%2d · %3s", it.count, status.Short(now.Sub(it.entry.Updated)))
 	name := fit(p.folderName(it.dir), max(p.folderW, 1))
-	nameStyle := cFolder
-	if !sel {
-		nameStyle = "\x1b[38;2;97;175;239m" // the folder color without bold
+	nameStyle := cMuted
+	if sel {
+		nameStyle = cFolder
 	}
 	titleW := max(w-1-3-width(name)-2-width(right)-3, 0)
 	title := strings.Repeat(" ", titleW)
-	if titleW >= 6 && arrow == "▸" { // open, its conversations show below
+	if titleW >= 24 && arrow == "▸" { // open, its conversations show below
 		title = fit(it.entry.Title, titleW)
 	}
 	return line(w, bg, bar, sp(" "+arrow+" ", cFaint), sp(name, nameStyle), sp("  ", ""),
@@ -623,33 +715,36 @@ func (p *Panel) viewHelp() []string {
 // only when there was load in the last 16 s.
 func (p *Panel) statsLines(w int) []string {
 	r := p.reading
-	groups := p.usageGroups(time.Now())
+	var out []string
+	for _, acc := range p.usageGroups(time.Now()) {
+		out = append(out, wrapGroups(acc, w)...)
+	}
 	calm := func(color string) string {
 		if color == cDone {
 			return ""
 		}
 		return color
 	}
+	var groups [][]span
 	if r.CPU >= 0 {
-		g := []span{sp("CPU ", cQuiet)}
+		g := []span{sp("cpu ", cFaint)}
 		if peak(p.cpuHist) >= 25 {
 			g = append(g, sp(spark(p.cpuHist)+" ", loadColor(r.CPU)))
 		}
 		groups = append(groups, append(g, sp(fmt.Sprintf("%.0f%%", r.CPU), calm(loadColor(r.CPU)))))
 	}
 	if m := r.MemPercent(); m >= 0 {
-		const cells = 6
-		full := min(int(m/100*cells+0.5), cells)
-		barColor := cQuiet
-		if c := memColor(m); c != cDone {
-			barColor = c
-		}
-		groups = append(groups, []span{sp("Mem ", cQuiet), sp(gb(r.MemUsed)+"/"+gb(r.MemTotal)+" GB ", calm(memColor(m))),
-			sp(strings.Repeat("━", full), barColor), sp(strings.Repeat("━", cells-full), cFaint)})
+		groups = append(groups, []span{sp("mem ", cFaint), sp(gb(r.MemUsed)+"/"+gb(r.MemTotal)+"G", calm(memColor(m)))})
 	}
 	if r.PerMinute >= 0 {
-		groups = append(groups, []span{sp(i18n.T("list.procs")+" ", cQuiet), sp(fmt.Sprintf("%.0f", r.PerMinute), "")})
+		groups = append(groups, []span{sp(i18n.T("list.procs")+" ", cFaint), sp(fmt.Sprintf("%.0f", r.PerMinute), ""), sp("/min", cFaint)})
 	}
+	return append(out, wrapGroups(groups, w)...)
+}
+
+// wrapGroups lays groups of spans on lines of w columns, three spaces apart,
+// starting a new line (never cutting) when the next group does not fit.
+func wrapGroups(groups [][]span, w int) []string {
 	var out []string
 	var cur []span
 	curW := 0
