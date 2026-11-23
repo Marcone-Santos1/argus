@@ -407,11 +407,11 @@ func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []st
 		left = []span{sp(q, cWaiting)}
 	case reply != "" && replyShown(a):
 		left = []span{sp("↳ ", cFaint), sp(reply, "\x1b[3m"+cQuiet)}
-		if shells > 0 {
-			left = append([]span{sp(i18n.T("list.shells", shells), cWorking), sp(" · ", cFaint)}, left...)
+		if bg := p.backgroundSpans(a); bg != nil {
+			left = append(append(bg, sp(" · ", cFaint)), left...)
 		}
-	case shells > 0:
-		left = []span{sp(i18n.T("list.shells", shells), cWorking)}
+	case p.backgroundSpans(a) != nil:
+		left = p.backgroundSpans(a)
 	case ctx:
 		left = ctxSpans(in.Context)
 		ctx = false

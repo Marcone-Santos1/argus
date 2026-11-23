@@ -225,8 +225,11 @@ func TestHookScript(t *testing.T) {
 			t.Fatalf("hook %s: err=%v output=%q (it must print nothing)", arg, err, out)
 		}
 		b, _ := os.ReadFile(filepath.Join(state, id))
-		st, sid, _ := strings.Cut(strings.TrimSpace(string(b)), "\n")
-		return st, sid
+		lines := strings.Split(string(b), "\n")
+		for len(lines) < 2 {
+			lines = append(lines, "")
+		}
+		return lines[0], lines[1]
 	}
 	run := func(id, arg string) string {
 		st, _ := runIn(id, arg, "")
@@ -264,6 +267,31 @@ func TestHookScript(t *testing.T) {
 			t.Fatalf("after %s: %q, want %q", s.arg, got, s.want)
 		}
 	}
+	// Subagents: a background one still running when the turn ends keeps the
+	// session working (and the idle notice is not a question) until it stops.
+	subs := []struct{ arg, want string }{
+		{"start", "idle"},
+		{"prompt", "working"},
+		{"substart", "working"},
+		{"substart", "working"},
+		{"substop", "working"}, // a foreground one finished inside the turn
+		{"stop", "working"},
+		{"notify", "working"},
+		{"substop", "done"},
+		{"prompt", "working"},
+		{"stop", "done"},
+		// An interrupted subagent that never stopped does not hold later turns.
+		{"prompt", "working"},
+		{"substart", "working"},
+		{"prompt", "working"},
+		{"stop", "done"},
+	}
+	for _, s := range subs {
+		if got := run("sub1", s.arg); got != s.want {
+			t.Fatalf("subagents, after %s: %q, want %q", s.arg, got, s.want)
+		}
+	}
+	os.Remove(filepath.Join(state, "sub1"))
 	// Outside Argus (no ARGUS_ID) or with an odd id, it does nothing.
 	cmd := exec.Command(script, "prompt")
 	cmd.Env = []string{}

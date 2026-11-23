@@ -44,6 +44,7 @@ var (
 	ClaudeEvents = []Event{
 		{"SessionStart", "start"}, {"UserPromptSubmit", "prompt"}, {"PermissionRequest", "perm"},
 		{"Notification", "notify"}, {"PostToolUse", "tool"}, {"Stop", "stop"}, {"SessionEnd", "end"},
+		{"SubagentStart", "substart"}, {"SubagentStop", "substop"},
 	}
 	CodexEvents = []Event{
 		{"SessionStart", "start"}, {"UserPromptSubmit", "prompt"}, {"PostToolUse", "tool"},

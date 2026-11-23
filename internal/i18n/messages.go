@@ -18,6 +18,8 @@ var messages = map[string][2]string{
 	"hint.answer":      {"y answer", "y responde"},
 	"list.procs":       {"proc", "proc"},
 	"list.shells":      {"⚙ %d running", "⚙ %d rodando"},
+	"list.agent1":      {"◆ 1 agent", "◆ 1 agente"},
+	"list.agentN":      {"◆ %d agents", "◆ %d agentes"},
 	"list.disk":        {"disk", "disco"},
 	"list.diskLow":     {" ⚠ disk almost full: %s free", " ⚠ disco quase cheio: %s livres"},
 	"list.heavyMany":   {" ⚠ heavy together: %s", " ⚠ pesadas juntas: %s"},

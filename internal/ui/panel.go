@@ -49,6 +49,7 @@ type agent struct {
 	PID                          int // the pane's process (to find its background shells)
 	Status                       string
 	Since                        time.Time
+	Subagents                    int // running subagents (Claude hook)
 }
 
 type mode int
@@ -473,6 +474,10 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	}
 	prev, seen := p.lastState[a.ID]
 	a.Status, a.Since = st, since
+	a.Subagents = 0
+	if st == status.Working {
+		a.Subagents = status.Subagents(p.d.Paths.Status(a.ID))
+	}
 	p.lastState[a.ID] = st
 	if !seen || prev != st {
 		p.logState(a.ID, p.sessionText(*a), st, since)
@@ -609,6 +614,9 @@ func (p *Panel) syncTitle(i int) {
 		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))
 	if n := p.shells[a.ID]; n > 0 {
 		title += fmt.Sprintf("#[fg=%s]· %s ", tmuxColor(cWorking), i18n.T("list.shells", n))
+	}
+	if a.Subagents > 0 {
+		title += fmt.Sprintf("#[fg=%s]· %s ", tmuxColor(cWorking), agentsText(a.Subagents))
 	}
 	if r, ok := p.res[a.ID]; ok && r.RSS > 0 {
 		title += "#[fg=#6c717c]· " + size(r.RSS) + " "

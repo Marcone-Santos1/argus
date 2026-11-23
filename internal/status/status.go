@@ -48,6 +48,20 @@ func Session(path string) string {
 	return strings.TrimSpace(lines[1])
 }
 
+// Subagents is how many subagents the hook saw running (third line).
+func Subagents(path string) int {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return 0
+	}
+	lines := strings.Split(string(data), "\n")
+	if len(lines) < 3 {
+		return 0
+	}
+	n, _ := strconv.Atoi(strings.TrimSpace(lines[2]))
+	return max(n, 0)
+}
+
 // Write stores a state.
 func Write(path, s string) error {
 	return os.WriteFile(path, []byte(s+"\n"), 0o644)

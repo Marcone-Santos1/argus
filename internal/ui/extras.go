@@ -584,3 +584,27 @@ func (p *Panel) isContentHit(e history.Entry) bool {
 func replyShown(a agent) bool {
 	return a.Status == status.Done || a.Status == status.Idle
 }
+
+// agentsText is "◆ 1 agent" / "◆ 3 agents".
+func agentsText(n int) string {
+	if n == 1 {
+		return i18n.T("list.agent1")
+	}
+	return i18n.T("list.agentN", n)
+}
+
+// backgroundSpans is what a session runs besides its own turn: background
+// shells and subagents (nil when nothing).
+func (p *Panel) backgroundSpans(a agent) []span {
+	var out []span
+	if n := p.shells[a.ID]; n > 0 {
+		out = append(out, sp(i18n.T("list.shells", n), cWorking))
+	}
+	if a.Subagents > 0 {
+		if out != nil {
+			out = append(out, sp(" · ", cFaint))
+		}
+		out = append(out, sp(agentsText(a.Subagents), cWorking))
+	}
+	return out
+}
