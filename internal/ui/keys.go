@@ -227,6 +227,8 @@ func (p *Panel) keyList(k string) {
 		p.openHistory()
 	case "t":
 		p.openTemplates()
+	case "d":
+		p.showDiff()
 	case "a":
 		p.switchAccount()
 	case "?":

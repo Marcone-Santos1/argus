@@ -503,3 +503,36 @@ func (p *Panel) doSwitch(prof config.Profile) {
 	}
 	do()
 }
+
+// diffScript shows a folder's changes in less: the short status (new files
+// included) and the diff against HEAD. $1 folder, $2 "not a repository",
+// $3 "no changes".
+const diffScript = `cd "$1" 2>/dev/null || exit 0
+{
+	if ! git rev-parse --git-dir >/dev/null 2>&1; then
+		printf '%s\n' "$2"
+	elif [ -z "$(git status --porcelain)" ]; then
+		printf '%s\n' "$3"
+	else
+		git -c color.status=always status --short
+		echo
+		git -c color.ui=always diff HEAD 2>/dev/null || git -c color.ui=always diff
+	fi
+} | less -R -K`
+
+// showDiff opens, over the screen, what changed in the selected session's
+// (or folder's) directory. q closes it.
+func (p *Panel) showDiff() {
+	if p.sel < 0 || p.sel >= len(p.items) {
+		return
+	}
+	dir := p.items[p.sel].dir
+	if dir == "" {
+		return
+	}
+	title := " " + i18n.T("diff.title", p.folderName(dir)) + " "
+	if _, err := p.d.Tmux.Run("display-popup", "-E", "-w", "90%", "-h", "90%", "-T", title, "-d", dir,
+		"sh", "-c", diffScript, "sh", dir, i18n.T("diff.notGit"), i18n.T("diff.clean")); err != nil {
+		p.flash(err.Error())
+	}
+}

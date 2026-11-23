@@ -99,3 +99,12 @@ func TestMemReading(t *testing.T) {
 		t.Fatal("sem dado: -1")
 	}
 }
+
+func TestDiskReading(t *testing.T) {
+	m := New()
+	m.DiskPath = t.TempDir()
+	r := m.Sample()
+	if r.DiskTotal == 0 || r.DiskFree == 0 || r.DiskFree > r.DiskTotal {
+		t.Fatalf("disk: free=%d total=%d", r.DiskFree, r.DiskTotal)
+	}
+}

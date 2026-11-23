@@ -15,9 +15,9 @@ import (
 func TestLaunchFirstPrompt(t *testing.T) {
 	p := testPanel(t)
 	prof := p.d.Config.Profiles[0]
-	p.firstPrompt = "leia o ONDE-PARAMOS.md"
+	p.firstPrompt = "leia o NOTES.md"
 	_, cmd := p.launch("a1", prof, nil)
-	if !strings.Contains(cmd[len(cmd)-1], "claude 'leia o ONDE-PARAMOS.md'") {
+	if !strings.Contains(cmd[len(cmd)-1], "claude 'leia o NOTES.md'") {
 		t.Fatalf("first message: %q", cmd[len(cmd)-1])
 	}
 	if p.firstPrompt != "" {
@@ -113,7 +113,7 @@ func TestBackgroundShellsKeepItRunning(t *testing.T) {
 	now := time.Now()
 	a := agent{ID: "a1", Name: "api", Dir: "/p/api", Profile: "personal", Status: status.Done, Since: now}
 	p.agents = []agent{a}
-	p.reply["a1"] = "Enquanto a suíte roda, deixo o commit pronto."
+	p.reply["a1"] = "Tests are running; the commit is ready."
 	p.shells["a1"] = 1
 	rows := p.agentRows(a, 1, false, now, 60)
 	got := visible(strings.Join(rows, "\n"))
@@ -122,5 +122,37 @@ func TestBackgroundShellsKeepItRunning(t *testing.T) {
 	}
 	if h := p.panelTitle(); strings.Contains(h, "✓") {
 		t.Fatalf("counted as done in the title: %q", h)
+	}
+}
+
+func TestHeavySessionsAndDisk(t *testing.T) {
+	p := testPanel(t)
+	now := time.Now()
+	p.agents = []agent{
+		{ID: "a1", Dir: "/p/api", Profile: "personal", Status: status.Working, Since: now},
+		{ID: "a2", Dir: "/p/web", Profile: "personal", Status: status.Working, Since: now},
+	}
+	p.rebuildItems("")
+	p.res["a1"] = sessRes{CPU: 240, hot: hotTicks}
+	p.res["a2"] = sessRes{CPU: 180, hot: hotTicks - 1}
+	if h := p.heavyWarning(); h != "" {
+		t.Fatalf("one heavy session on a calm machine is no warning: %q", h)
+	}
+	p.res["a2"] = sessRes{CPU: 180, hot: hotTicks}
+	if h := p.heavyWarning(); !strings.Contains(h, "api 240% + web 180%") {
+		t.Fatalf("two heavy sessions: %q", h)
+	}
+	if got := visible(strings.Join(p.agentRows(p.agents[0], 1, false, now, 60), "")); !strings.Contains(got, "cpu 240%") {
+		t.Fatalf("the session shows its CPU: %q", got)
+	}
+	p.reading.DiskFree = 2 << 30
+	foot := visible(strings.Join(p.footer(), "\n"))
+	if !strings.Contains(foot, "2.0G") || !strings.Contains(foot, "⚠") {
+		t.Fatalf("low disk warning: %q", foot)
+	}
+	for b, want := range map[uint64]string{27 << 30: "27G", 4600 << 20: "4.5G", 820 << 20: "820M"} {
+		if got := size(b); got != want {
+			t.Errorf("size(%d) = %q, want %q", b, got, want)
+		}
 	}
 }

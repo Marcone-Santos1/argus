@@ -4,13 +4,20 @@
 package sysmon
 
 import (
+	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+	"syscall"
 	"time"
 )
+
+func home() string {
+	h, _ := os.UserHomeDir()
+	return h
+}
 
 // A rate of StormRate processes/min sustained for StormFor raises the alarm.
 const (
@@ -24,7 +31,9 @@ type Reading struct {
 	PerMinute  float64 // processes created per minute; <0 = no data
 	MemUsed    uint64  // bytes in use (as Activity Monitor counts it); 0 = no data
 	MemTotal   uint64  // installed memory in bytes
-	Storm      bool    // rate above StormRate for StormFor
+	DiskFree   uint64  // bytes free for the user on the home volume; 0 = no data
+	DiskTotal  uint64
+	Storm      bool // rate above StormRate for StormFor
 	StormSince time.Time
 }
 
@@ -42,15 +51,16 @@ type Monitor struct {
 	stormStart  time.Time
 	probes      bool             // whether Probe starts a process (counted out)
 	Probe       func() int       // returns a fresh PID; replaceable in tests
+	DiskPath    string           // volume whose free space is measured (home)
 	Now         func() time.Time // replaceable in tests
 }
 
 // New creates a monitor with the best PID source for this OS.
 func New() *Monitor {
 	if _, ok := nextPID(); ok {
-		return &Monitor{Probe: func() int { n, _ := nextPID(); return n }, Now: time.Now}
+		return &Monitor{Probe: func() int { n, _ := nextPID(); return n }, Now: time.Now, DiskPath: home()}
 	}
-	return &Monitor{Probe: probePID, Now: time.Now, probes: true}
+	return &Monitor{Probe: probePID, Now: time.Now, probes: true, DiskPath: home()}
 }
 
 func probePID() int {
@@ -74,6 +84,13 @@ func (m *Monitor) Sample() Reading {
 	}
 	if u, t, ok := memInfo(); ok {
 		r.MemUsed, r.MemTotal = u, t
+	}
+	if m.DiskPath != "" {
+		var st syscall.Statfs_t
+		if syscall.Statfs(m.DiskPath, &st) == nil {
+			r.DiskFree = st.Bavail * uint64(st.Bsize)
+			r.DiskTotal = st.Blocks * uint64(st.Bsize)
+		}
 	}
 	now := m.Now()
 	pid := m.Probe()

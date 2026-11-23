@@ -113,7 +113,10 @@ type Panel struct {
 	extrasSeen   map[string]bool       // sessions whose git/reply were read once
 	shells       map[string]int        // per session: commands still running in the background
 	sized        map[string]string     // hidden session pane -> size its window was given
-	tplFrom      string                // session to save as a template (t)
+	res          map[string]sessRes    // per session: CPU and memory of its processes
+	cpuPrev      map[int]uint64        // CPU time per process at the last reading
+	cpuPrevAt    time.Time
+	tplFrom      string // session to save as a template (t)
 	tplSel       int
 	firstPrompt  string // first message of the next session started (templates)
 	searchCancel func()
@@ -192,6 +195,7 @@ func New(d Deps) *Panel {
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
 		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, shells: map[string]int{}, sized: map[string]string{},
+		res: map[string]sessRes{}, cpuPrev: map[int]uint64{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
@@ -297,13 +301,11 @@ func (p *Panel) tick() {
 	if p.msg != "" && time.Now().After(p.msgUntil) {
 		p.msg = ""
 	}
-	if len(p.shells) > 0 {
-		p.checkShells() // only while something runs in the background
-	}
 	if p.d.Monitor == nil {
 		return
 	}
 	p.reading = p.d.Monitor.Sample()
+	p.sampleSessions(time.Now())
 	if p.reading.CPU >= 0 {
 		p.cpuHist = pushLast(p.cpuHist, p.reading.CPU)
 	}
@@ -587,6 +589,9 @@ func (p *Panel) syncTitle(i int) {
 		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))
 	if n := p.shells[a.ID]; n > 0 {
 		title += fmt.Sprintf("#[fg=%s]· %s ", tmuxColor(cWorking), i18n.T("list.shells", n))
+	}
+	if r, ok := p.res[a.ID]; ok && r.RSS > 0 {
+		title += "#[fg=#6c717c]· " + size(r.RSS) + " "
 	}
 	if in, ok := p.profileUsage(a.Profile); ok && !in.FiveHour.Expired(time.Now()) {
 		c := pctColor(in.FiveHour.Percent)

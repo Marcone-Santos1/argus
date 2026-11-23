@@ -149,10 +149,10 @@ command = "opencode"
 # Templates: t starts one (folder, profile and an optional first message).
 # The panel also saves the ones you create there in templates.toml.
 # [[template]]
-# name = "praeko review"
-# dir = "~/Projects/praeko"
+# name = "api review"
+# dir = "~/Projects/api"
 # profile = "claude-work"
-# prompt = "Read ONDE-PARAMOS.md and tell me what is next."
+# prompt = "Read NOTES.md and tell me what is next."
 
 # Optional rules: a folder containing the text opens with the profile.
 # [[rule]]

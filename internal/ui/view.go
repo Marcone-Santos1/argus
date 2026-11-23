@@ -241,6 +241,12 @@ func (p *Panel) footer() []string {
 	if p.reading.Storm {
 		foot = append(foot, line(w, "", sp(i18n.T("list.storm", p.reading.PerMinute), red)))
 	}
+	if h := p.heavyWarning(); h != "" {
+		foot = append(foot, line(w, "", sp(h, cWorking)))
+	}
+	if r := p.reading; r.DiskFree > 0 && r.DiskFree < diskLow {
+		foot = append(foot, line(w, "", sp(i18n.T("list.diskLow", size(r.DiskFree)), red)))
+	}
 	foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
 	foot = append(foot, p.statsLines(w)...)
 	for _, h := range wrapHints(tr(p.hintKeys()...), w) {
@@ -259,7 +265,7 @@ func (p *Panel) hintKeys() []string {
 			if p.agents[it.agent].Status == status.Waiting {
 				keys = append(keys, "hint.answer")
 			}
-			return append(keys, "hint.rename", "hint.close", "hint.help")
+			return append(keys, "hint.diff", "hint.close", "hint.help")
 		case it.folder:
 			return []string{"hint.expand", "hint.new", "hint.history", "hint.help"}
 		default:
@@ -410,6 +416,7 @@ func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []st
 	if ctx && in.Context >= 70 { // the reply took the line; a full context still shows
 		r2 = append(ctxSpans(in.Context), sp("  ", ""))
 	}
+	r2 = append(r2, p.cpuSpans(a.ID)...)
 	if a.Worktree != "" {
 		r2 = append(r2, sp("⑂ ", cQuiet))
 	}
@@ -701,6 +708,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"a", "help.account"},
 	{"y", "help.answer"},
 	{"t", "help.templates"},
+	{"d", "help.diff"},
 	{"< >", "help.width"},
 	{"click", "help.click"},
 	{"Esc", "help.hide"},
@@ -747,6 +755,16 @@ func (p *Panel) statsLines(w int) []string {
 	if m := r.MemPercent(); m >= 0 {
 		groups = append(groups, []span{sp("mem ", cFaint), sp(gb(r.MemUsed)+"/"+gb(r.MemTotal)+"G", calm(memColor(m)))})
 	}
+	if r.DiskFree > 0 {
+		color := ""
+		switch {
+		case r.DiskFree < diskLow:
+			color = cEnded
+		case r.DiskFree < diskWarn:
+			color = cWorking
+		}
+		groups = append(groups, []span{sp(i18n.T("list.disk")+" ", cFaint), sp(size(r.DiskFree), color)})
+	}
 	if r.PerMinute >= 0 {
 		groups = append(groups, []span{sp(i18n.T("list.procs")+" ", cFaint), sp(fmt.Sprintf("%.0f", r.PerMinute), ""), sp("/min", cFaint)})
 	}
@@ -779,6 +797,25 @@ func wrapGroups(groups [][]span, w int) []string {
 		out = append(out, line(w, "", cur...))
 	}
 	return out
+}
+
+// Free disk space: yellow below diskWarn, red and a warning below diskLow
+// (Claude Code cannot even run a command on a full disk).
+const (
+	diskWarn = 10 << 30
+	diskLow  = 3 << 30
+)
+
+// size formats bytes compactly: "27G", "4.6G", "820M".
+func size(b uint64) string {
+	g := float64(b) / (1 << 30)
+	switch {
+	case g >= 10:
+		return fmt.Sprintf("%.0fG", g)
+	case g >= 1:
+		return fmt.Sprintf("%.1fG", g)
+	}
+	return fmt.Sprintf("%.0fM", float64(b)/(1<<20))
 }
 
 func peak(vals []float64) float64 {

@@ -55,6 +55,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `↑` `↓` | select; an open session shows on the right |
 | `Enter` | enter the session, open a folder, or resume the past conversation |
 | `→ ←` | open / close a folder of past conversations |
+| `d` | diff: what changed in the selected folder, in a popup (q closes) |
 | `t` | templates: start a saved session (folder, account and first message); with a session selected, save it as one |
 | `< >` | narrow / widen the list (or drag the border; the width is remembered) |
 | click | selects (a session shows on the right); double click enters, or resumes a conversation |

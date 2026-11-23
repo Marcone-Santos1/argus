@@ -1,6 +1,9 @@
 package procs
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestShells(t *testing.T) {
 	all := []Proc{
@@ -30,4 +33,32 @@ func TestCountReadsTheTable(t *testing.T) {
 	if _, ok := Count([]int{1}); !ok {
 		t.Skip("no process table here")
 	}
+}
+
+func TestUsageOfThisProcess(t *testing.T) {
+	tb, ok := Read()
+	if !ok {
+		t.Skip("no process table here")
+	}
+	me := os.Getpid()
+	if tree := tb.Tree(os.Getppid()); !contains(tree, me) {
+		t.Fatalf("the parent's tree has this process: %v", tree)
+	}
+	busy := 0
+	for i := 0; i < 3_000_000; i++ {
+		busy += i % 7
+	}
+	cpu, rss, ok := Usage(me)
+	if !ok || cpu == 0 || rss < 1<<20 {
+		t.Fatalf("usage: cpu=%d rss=%d ok=%v (%d)", cpu, rss, ok, busy)
+	}
+}
+
+func contains(xs []int, x int) bool {
+	for _, v := range xs {
+		if v == x {
+			return true
+		}
+	}
+	return false
 }

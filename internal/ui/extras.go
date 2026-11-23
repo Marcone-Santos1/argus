@@ -65,29 +65,126 @@ func (p *Panel) gitText(dir string) string {
 // ---------- background shells ----------
 
 // checkShells counts the commands each idle or finished session left running
-// in the background. It reads the process table once (one sysctl, no child
-// process) when a turn ends, and on the 2 s tick only while some are running.
+// in the background, reading the process table once (one sysctl, no child
+// process). Called when a turn ends; the 2 s tick refreshes it too.
 func (p *Panel) checkShells() {
-	var roots []int
-	for _, a := range p.agents {
-		if a.PID > 0 && a.Status != status.Working {
-			roots = append(roots, a.PID)
-		}
+	if t, ok := procs.Read(); ok {
+		p.applyShells(t)
 	}
-	counts, ok := procs.Count(roots)
-	if !ok && len(roots) > 0 {
-		return
-	}
+}
+
+func (p *Panel) applyShells(t *procs.Table) {
 	next := map[string]int{}
 	for i, a := range p.agents {
-		if n := counts[a.PID]; n > 0 && a.Status != status.Working {
-			next[a.ID] = n
+		if a.PID > 0 && a.Status != status.Working {
+			if n := t.Shells(a.PID); n > 0 {
+				next[a.ID] = n
+			}
 		}
 		if next[a.ID] != p.shells[a.ID] {
 			defer p.syncTitle(i)
 		}
 	}
 	p.shells = next
+}
+
+// sessRes is what one session's processes (the agent, its MCP servers and
+// the commands it runs) use.
+type sessRes struct {
+	CPU float64 // % of one core; <0 until two readings exist
+	RSS uint64
+	hot int // consecutive readings at or above hotCPU
+}
+
+// A session at hotCPU (% of one core) for hotTicks readings in a row counts
+// as heavy.
+const (
+	hotCPU   = 100
+	hotTicks = 3
+)
+
+// sampleSessions measures, on the 2 s tick, each session's CPU and memory
+// and its background shells: one process table read plus one small kernel
+// call per process of the sessions.
+func (p *Panel) sampleSessions(now time.Time) {
+	if len(p.agents) == 0 {
+		p.res, p.cpuPrev = map[string]sessRes{}, map[int]uint64{}
+		return
+	}
+	t, ok := procs.Read()
+	if !ok {
+		return
+	}
+	p.applyShells(t)
+	elapsed := now.Sub(p.cpuPrevAt)
+	cur := map[int]uint64{}
+	res := map[string]sessRes{}
+	for _, a := range p.agents {
+		if a.PID <= 0 {
+			continue
+		}
+		r := sessRes{CPU: -1}
+		var delta uint64
+		known := false
+		for _, pid := range t.Tree(a.PID) {
+			cpu, rss, ok := procs.Usage(pid)
+			if !ok {
+				continue
+			}
+			cur[pid] = cpu
+			r.RSS += rss
+			if prev, ok := p.cpuPrev[pid]; ok && cpu >= prev {
+				delta += cpu - prev
+				known = true
+			}
+		}
+		if known && elapsed > 0 && !p.cpuPrevAt.IsZero() {
+			r.CPU = float64(delta) / float64(elapsed.Nanoseconds()) * 100
+		}
+		if r.CPU >= hotCPU {
+			r.hot = p.res[a.ID].hot + 1
+		}
+		res[a.ID] = r
+	}
+	p.res, p.cpuPrev, p.cpuPrevAt = res, cur, now
+}
+
+// heavyWarning names the sessions loading the machine together: two or more
+// heavy at once, or one heavy while the whole machine is near full.
+func (p *Panel) heavyWarning() string {
+	var parts []string
+	for _, it := range p.items {
+		if it.agent < 0 {
+			continue
+		}
+		a := p.agents[it.agent]
+		if r := p.res[a.ID]; r.hot >= hotTicks {
+			parts = append(parts, fmt.Sprintf("%s %.0f%%", p.folderName(a.Dir), r.CPU))
+		}
+	}
+	switch {
+	case len(parts) >= 2:
+		return i18n.T("list.heavyMany", strings.Join(parts, " + "))
+	case len(parts) == 1 && p.reading.CPU >= 85:
+		return i18n.T("list.heavyOne", parts[0])
+	}
+	return ""
+}
+
+// cpuSpans is a session's CPU on its second line, only when it is busy.
+func (p *Panel) cpuSpans(id string) []span {
+	r, ok := p.res[id]
+	if !ok || r.CPU < 20 {
+		return nil
+	}
+	color := cQuiet
+	switch {
+	case r.CPU >= 300:
+		color = cEnded
+	case r.CPU >= hotCPU:
+		color = cWorking
+	}
+	return []span{sp("cpu ", cFaint), sp(fmt.Sprintf("%.0f%%", r.CPU), color), sp("  ", "")}
 }
 
 // ---------- account usage (from the status line) ----------
