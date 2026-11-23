@@ -174,6 +174,21 @@ func TestPace(t *testing.T) {
 	if !strings.Contains(foot, "▰│▰▰▱▱▱ 50% ⚠1h00") {
 		t.Fatalf("pace marker and warning: %q", foot)
 	}
+	// A stale reading keeps the pace it had: read 40 min ago, it ends in 20.
+	p.usage["a1"] = usage.Info{FiveHour: &usage.Limit{Percent: 50, Resets: now.Add(4*time.Hour - 40*time.Minute)}, At: now.Add(-40 * time.Minute)}
+	if foot := visible(strings.Join(p.statsLines(80), "")); !strings.Contains(foot, "50% ⚠20m") {
+		t.Fatalf("stale reading: %q", foot)
+	}
+	// The status line stops at 99% once the limit is hit; past the forecast
+	// end it shows the time until the limit comes back.
+	p.usage["a1"] = usage.Info{FiveHour: &usage.Limit{Percent: 99, Resets: now.Add(7*time.Minute + 30*time.Second)}, At: now.Add(-10 * time.Minute)}
+	if foot := visible(strings.Join(p.statsLines(80), "")); !strings.Contains(foot, "99% ↻7m") {
+		t.Fatalf("spent limit: %q", foot)
+	}
+	p.usage["a1"] = usage.Info{FiveHour: &usage.Limit{Percent: 100, Resets: now.Add(30*time.Minute + 30*time.Second)}, At: now}
+	if foot := visible(strings.Join(p.statsLines(80), "")); !strings.Contains(foot, "100% ↻30m") {
+		t.Fatalf("full limit: %q", foot)
+	}
 }
 
 func TestScreenTail(t *testing.T) {

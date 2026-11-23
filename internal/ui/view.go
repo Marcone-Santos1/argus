@@ -733,7 +733,7 @@ func (p *Panel) viewHelp() []string {
 	for _, h := range helpKeys {
 		body = append(body, " "+bold+fit(h.key, 10)+reset+" "+fit(i18n.T(h.msg), w-12))
 	}
-	body = append(body, "", dim+fit(" "+i18n.T("help.status"), w)+reset)
+	body = append(body, "", dim+fit(" "+i18n.T("help.status"), w)+reset, dim+fit(" "+i18n.T("help.limits"), w)+reset)
 	foot := []string{dim + strings.Repeat("─", w) + reset, dim + fit(" "+i18n.T("help.close.any"), w) + reset}
 	return layout(body, foot, p.h, 0)
 }

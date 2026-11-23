@@ -18,6 +18,7 @@ var messages = map[string][2]string{
 	"hint.answer":      {"y answer", "y responde"},
 	"list.procs":       {"proc", "proc"},
 	"list.shells":      {"⚙ %d running", "⚙ %d rodando"},
+	"help.limits":      {"limits: 2h48 resets in · ⚠29m runs out in (at this pace) · ↻7m spent, back in", "limites: 2h48 zera em · ⚠29m acaba em (neste ritmo) · ↻7m acabou, volta em"},
 	"list.agent1":      {"◆ 1 agent", "◆ 1 agente"},
 	"list.agentN":      {"◆ %d agents", "◆ %d agentes"},
 	"list.disk":        {"disk", "disco"},

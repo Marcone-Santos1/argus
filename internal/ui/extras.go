@@ -299,7 +299,10 @@ func (p *Panel) usageGroups(now time.Time) [][][]span {
 				untilReset := l.Resets.Sub(now)
 				left = fmt.Sprintf(" %-5s", untilText(untilReset))
 				elapsed = 1 - float64(untilReset)/float64(window)
-				if ends, ok := paceEnds(pct, elapsed, window); ok && ends < untilReset {
+				switch st, ends := limitPace(l, in.At, now, window); st {
+				case paceOut: // ran out: the time until it comes back
+					left, leftStyle = fmt.Sprintf(" ↻%-4s", untilText(untilReset)), cEnded
+				case paceShort: // runs out before it resets: when
 					left, leftStyle = fmt.Sprintf(" ⚠%-4s", untilText(ends)), cWorking
 				}
 			}
@@ -324,6 +327,35 @@ func (p *Panel) usageGroups(now time.Time) [][][]span {
 		}
 	}
 	return out
+}
+
+const (
+	paceOK    = iota // lasts until the window resets
+	paceShort        // runs out before the reset (ends says in how long)
+	paceOut          // already ran out (or must have, by the last pace)
+)
+
+// limitPace judges a window from its last reading, taken at "at": the pace is
+// the one measured then, so a stale reading does not slow it down. The
+// status line stops reporting once the limit is hit, so the last reading may
+// say 99%; when the forecast end has passed, the limit is taken as spent.
+func limitPace(l *usage.Limit, at, now time.Time, window time.Duration) (int, time.Duration) {
+	if l.Percent >= 99.5 {
+		return paceOut, 0
+	}
+	if at.IsZero() || at.After(now) {
+		at = now
+	}
+	untilReset := l.Resets.Sub(at)
+	ends, ok := paceEnds(l.Percent, 1-float64(untilReset)/float64(window), window)
+	if !ok || ends >= untilReset {
+		return paceOK, 0
+	}
+	left := at.Add(ends).Sub(now)
+	if left <= 0 {
+		return paceOut, 0
+	}
+	return paceShort, left.Round(time.Second)
 }
 
 // paceEnds estimates when a window runs out at the pace used so far; ok is
