@@ -168,3 +168,47 @@ func (p *Panel) wheel(dir string) {
 		p.keyTemplates(dir)
 	}
 }
+
+// ---------- hidden sessions keep the right side's size ----------
+
+// syncHiddenSize gives the windows of the hidden sessions the exact size of
+// the right side. Otherwise a hidden session lives at the full terminal
+// width, and showing it resizes it: Claude redraws and the content jumps.
+// w, h is the right side's size; 0 when unknown (nothing changes).
+func (p *Panel) syncHiddenSize(w, h int) {
+	if w < 10 || h < 4 {
+		return
+	}
+	size := fmt.Sprintf("%dx%d", w, h)
+	var args []string
+	for _, a := range p.agents {
+		if a.Displayed || a.Pane == "" || p.sized[a.Pane] == size {
+			continue
+		}
+		p.sized[a.Pane] = size
+		if args != nil {
+			args = append(args, ";")
+		}
+		args = append(args, "set-option", "-w", "-t", a.Pane, "window-size", "manual", ";",
+			"resize-window", "-t", a.Pane, "-x", strconv.Itoa(w), "-y", strconv.Itoa(h))
+	}
+	if args != nil {
+		_, _ = p.d.Tmux.Run(args...)
+	}
+}
+
+// displaySize asks tmux for the right side's size (after the list resized).
+func (p *Panel) displaySize() (int, int) {
+	if p.displayPane == "" {
+		return 0, 0
+	}
+	out, err := p.d.Tmux.Run("display", "-p", "-t", p.displayPane, "#{pane_width} #{pane_height} #{window_zoomed_flag}")
+	if err != nil {
+		return 0, 0
+	}
+	var w, h, z int
+	if n, _ := fmt.Sscan(out, &w, &h, &z); n != 3 || z == 1 {
+		return 0, 0
+	}
+	return w, h
+}

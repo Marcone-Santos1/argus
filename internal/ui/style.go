@@ -23,7 +23,7 @@ const (
 	cAmber   = "\x1b[38;2;229;192;123m"
 	bgSel    = "\x1b[48;2;41;50;69m"
 	bgWait   = "\x1b[48;2;58;48;32m"
-	bgSoft   = "\x1b[48;2;34;40;56m"  // the rest of the selected session's group
+	bgSoft   = "\x1b[48;2;34;40;56m"    // the rest of the selected session's group
 	cMuted   = "\x1b[38;2;139;145;156m" // recent folders
 )
 

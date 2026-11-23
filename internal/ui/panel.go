@@ -112,6 +112,7 @@ type Panel struct {
 	usage        map[string]usage.Info // per session: the status line's last report
 	extrasSeen   map[string]bool       // sessions whose git/reply were read once
 	shells       map[string]int        // per session: commands still running in the background
+	sized        map[string]string     // hidden session pane -> size its window was given
 	tplFrom      string                // session to save as a template (t)
 	tplSel       int
 	firstPrompt  string // first message of the next session started (templates)
@@ -190,7 +191,7 @@ func New(d Deps) *Panel {
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
-		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, shells: map[string]int{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, shells: map[string]int{}, sized: map[string]string{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
@@ -275,6 +276,7 @@ func (p *Panel) Run() error {
 		case <-winch:
 			p.resize()
 			p.noteWidth()
+			p.syncHiddenSize(p.displaySize())
 		case <-p.swapC:
 			p.swapC = nil
 			p.showSelected()
@@ -373,6 +375,9 @@ func (p *Panel) reconcile() {
 		}
 	} else {
 		p.displayPane = inMain[0].ID
+		if d := inMain[0]; !d.Zoomed {
+			defer p.syncHiddenSize(d.Width, d.Height)
+		}
 		for _, extra := range inMain[1:] {
 			if extra.Role == tmux.RolePlaceholder {
 				_, _ = p.d.Tmux.Run("kill-pane", "-t", extra.ID)

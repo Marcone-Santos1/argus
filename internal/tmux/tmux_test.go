@@ -10,7 +10,7 @@ import (
 
 func TestParsePanes(t *testing.T) {
 	line := strings.Join([]string{"%3", "main", "1", "0", "4242", "agent", "ab12cd", "claude-work",
-		"/p/api", "api", "1795000000000000000", "ses_x", "/p/repo"}, "\t")
+		"/p/api", "api", "1795000000000000000", "ses_x", "/p/repo", "152", "54", "0"}, "\t")
 	ps := ParsePanes(line + "\nbroken line\n")
 	if len(ps) != 1 {
 		t.Fatalf("expected 1 pane: %+v", ps)
@@ -18,7 +18,8 @@ func TestParsePanes(t *testing.T) {
 	p := ps[0]
 	if p.ID != "%3" || !p.InMain() || p.Index != 1 || p.Dead || p.PID != 4242 || p.Role != RoleAgent ||
 		p.AgentID != "ab12cd" || p.Profile != "claude-work" || p.Dir != "/p/api" || p.Name != "api" ||
-		p.Created != 1795000000000000000 || p.Session != "ses_x" || p.Worktree != "/p/repo" {
+		p.Created != 1795000000000000000 || p.Session != "ses_x" || p.Worktree != "/p/repo" ||
+		p.Width != 152 || p.Height != 54 || p.Zoomed {
 		t.Fatalf("fields: %+v", p)
 	}
 }

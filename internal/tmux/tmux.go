@@ -84,6 +84,9 @@ type Pane struct {
 	Created  int64
 	Session  string // id of the resumed (or detected) conversation, if any
 	Worktree string // source repository when the session runs in a worktree
+	Width    int
+	Height   int
+	Zoomed   bool // its window has a zoomed pane
 }
 
 // InMain reports whether the pane is in the main window (list + visible session).
@@ -93,6 +96,7 @@ var paneFields = []string{
 	"#{pane_id}", "#{window_name}", "#{pane_index}", "#{pane_dead}", "#{pane_pid}",
 	"#{@argus_role}", "#{@argus_id}", "#{@argus_profile}", "#{@argus_dir}", "#{@argus_name}",
 	"#{@argus_created}", "#{@argus_session}", "#{@argus_worktree}",
+	"#{pane_width}", "#{pane_height}", "#{window_zoomed_flag}",
 }
 
 // PaneFormat is the list-panes format used by ListPanes (tab separated).
@@ -118,10 +122,13 @@ func ParsePanes(out string) []Pane {
 		idx, _ := strconv.Atoi(f[2])
 		pid, _ := strconv.Atoi(f[4])
 		created, _ := strconv.ParseInt(f[10], 10, 64)
+		pw, _ := strconv.Atoi(f[13])
+		ph, _ := strconv.Atoi(f[14])
 		ps = append(ps, Pane{
 			ID: f[0], Window: f[1], Index: idx, Dead: f[3] == "1", PID: pid,
 			Role: f[5], AgentID: f[6], Profile: f[7], Dir: f[8], Name: f[9],
 			Created: created, Session: f[11], Worktree: f[12],
+			Width: pw, Height: ph, Zoomed: f[15] == "1",
 		})
 	}
 	return ps
