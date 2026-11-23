@@ -118,6 +118,7 @@ type Panel struct {
 	seenAt       map[string]time.Time  // last time each session was on the right (hibernation)
 	bgAgents     map[string]int        // background agents still running after the turn ended
 	bgTick       int
+	transcripts  map[string]string  // conversation id -> transcript path
 	shells       map[string]int     // per session: commands still running in the background
 	sized        map[string]string  // hidden session pane -> size its window was given
 	res          map[string]sessRes // per session: CPU and memory of its processes
@@ -206,7 +207,7 @@ func New(d Deps) *Panel {
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
-		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, shells: map[string]int{}, sized: map[string]string{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
@@ -487,7 +488,9 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	// A turn that ended with background agents still running: the session
 	// keeps working. Read when the turn ends (or the panel starts) and, while
 	// some run, again on the tick (bgCheck).
-	if st == status.Done && a.Asleep.IsZero() && (!seen || prev == status.Working || p.bgAgents[a.ID] > 0) {
+	if st == status.Done && a.Asleep.IsZero() && !seen {
+		p.bgSoon(a.ID) // on start, off the main loop: it reads files of every session
+	} else if st == status.Done && a.Asleep.IsZero() && (prev == status.Working || p.bgAgents[a.ID] > 0) {
 		if n := p.backgroundAgents(*a); n > 0 {
 			p.bgAgents[a.ID] = n
 		} else {

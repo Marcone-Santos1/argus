@@ -113,7 +113,14 @@ func (p *Panel) backgroundAgents(a agent) int {
 	if !ok || prof.Label() != history.Claude || a.Session == "" {
 		return 0
 	}
-	return history.BackgroundAgents(filepath.Join(prof.ClaudeConfigDir(p.d.Paths.Home), "projects"), a.Session, time.Now())
+	path, ok := p.transcripts[a.Session]
+	if !ok { // found once per conversation: the glob reads every project folder
+		path = history.TranscriptPath(filepath.Join(prof.ClaudeConfigDir(p.d.Paths.Home), "projects"), a.Session)
+		if path != "" {
+			p.transcripts[a.Session] = path
+		}
+	}
+	return history.BackgroundAgentsOf(path, time.Now())
 }
 
 // bgCheck re-reads, every 10 s, the sessions held working by background
@@ -131,4 +138,40 @@ func (p *Panel) bgCheck() {
 			p.syncTitle(i)
 		}
 	}
+}
+
+// bgSoon counts a session's background agents off the main loop (on start)
+// and re-reads its state when some are running.
+func (p *Panel) bgSoon(id string) {
+	var a agent
+	for _, x := range p.agents {
+		if x.ID == id {
+			a = x
+		}
+	}
+	prof, ok := p.profileOf(a.Profile)
+	if !ok || prof.Label() != history.Claude || a.Session == "" {
+		return
+	}
+	projects := filepath.Join(prof.ClaudeConfigDir(p.d.Paths.Home), "projects")
+	ch := p.asyncC
+	go func() {
+		path := history.TranscriptPath(projects, a.Session)
+		n := history.BackgroundAgentsOf(path, time.Now())
+		ch <- func() {
+			if path != "" {
+				p.transcripts[a.Session] = path
+			}
+			if n == 0 {
+				return
+			}
+			p.bgAgents[id] = n
+			for i := range p.agents {
+				if p.agents[i].ID == id {
+					p.refreshStatus(i, false)
+					p.syncTitle(i)
+				}
+			}
+		}
+	}()
 }

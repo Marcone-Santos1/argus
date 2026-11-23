@@ -88,7 +88,11 @@ const agentStale = 30 * time.Minute
 // "finished" is set when the agent ends. One stat per agent, and a read only
 // for the recent ones.
 func BackgroundAgents(projects, id string, now time.Time) int {
-	path := TranscriptPath(projects, id)
+	return BackgroundAgentsOf(TranscriptPath(projects, id), now)
+}
+
+// BackgroundAgentsOf is BackgroundAgents for a known transcript path.
+func BackgroundAgentsOf(path string, now time.Time) int {
 	if path == "" {
 		return 0
 	}
