@@ -144,9 +144,50 @@ func (p *Panel) sampleSessions(now time.Time) {
 		if r.CPU >= hotCPU {
 			r.hot = p.res[a.ID].hot + 1
 		}
+		if r.CPU >= 0 {
+			series := append(p.cpuSeries[a.ID], r.CPU)
+			if len(series) > cpuWindow {
+				series = series[len(series)-cpuWindow:]
+			}
+			p.cpuSeries[a.ID] = series
+		}
 		res[a.ID] = r
 	}
 	p.res, p.cpuPrev, p.cpuPrevAt = res, cur, now
+	for id := range p.cpuSeries {
+		if _, ok := res[id]; !ok {
+			delete(p.cpuSeries, id)
+		}
+	}
+}
+
+// cpuWindow readings (2 s each) make the last minute of a session's CPU.
+const cpuWindow = 30
+
+// cpuSpark draws the last minute of a session's CPU in 6 bars (averages of
+// 5 readings), scaled to its peak or to one full core.
+func cpuSpark(series []float64) string {
+	const bars = 6
+	if len(series) == 0 {
+		return ""
+	}
+	per := max(len(series)/bars, 1)
+	var avgs []float64
+	for i := len(series) % per; i+per <= len(series); i += per {
+		sum := 0.0
+		for _, v := range series[i : i+per] {
+			sum += v
+		}
+		avgs = append(avgs, sum/float64(per))
+	}
+	if len(avgs) > bars {
+		avgs = avgs[len(avgs)-bars:]
+	}
+	scale := max(peak(avgs), 100)
+	for i := range avgs {
+		avgs[i] = avgs[i] / scale * 100
+	}
+	return spark(avgs)
 }
 
 // heavyWarning names the sessions loading the machine together: two or more
@@ -174,7 +215,7 @@ func (p *Panel) heavyWarning() string {
 // cpuSpans is a session's CPU on its second line, only when it is busy.
 func (p *Panel) cpuSpans(id string) []span {
 	r, ok := p.res[id]
-	if !ok || r.CPU < 20 {
+	if !ok || r.CPU < 0 || peak(p.cpuSeries[id]) < 20 {
 		return nil
 	}
 	color := cQuiet
@@ -184,7 +225,11 @@ func (p *Panel) cpuSpans(id string) []span {
 	case r.CPU >= hotCPU:
 		color = cWorking
 	}
-	return []span{sp("cpu ", cFaint), sp(fmt.Sprintf("%.0f%%", r.CPU), color), sp("  ", "")}
+	barColor := color
+	if barColor == cQuiet {
+		barColor = cFaint
+	}
+	return []span{sp("cpu ", cFaint), sp(cpuSpark(p.cpuSeries[id])+" ", barColor), sp(fmt.Sprintf("%.0f%%", r.CPU), color), sp("  ", "")}
 }
 
 // ---------- account usage (from the status line) ----------
@@ -242,31 +287,72 @@ func (p *Panel) usageGroups(now time.Time) [][][]span {
 			continue
 		}
 		var gs [][]span
-		add := func(label string, l *usage.Limit) {
+		add := func(label string, l *usage.Limit, window time.Duration, n int) {
 			if l == nil {
 				return
 			}
-			pct, left := l.Percent, ""
+			pct, left, leftStyle := l.Percent, "", cQuiet
+			elapsed := -1.0
 			if l.Expired(now) {
 				pct = 0
 			} else if !l.Resets.IsZero() {
-				left = fmt.Sprintf(" %-5s", untilText(l.Resets.Sub(now)))
+				untilReset := l.Resets.Sub(now)
+				left = fmt.Sprintf(" %-5s", untilText(untilReset))
+				elapsed = 1 - float64(untilReset)/float64(window)
+				if ends, ok := paceEnds(pct, elapsed, window); ok && ends < untilReset {
+					left, leftStyle = fmt.Sprintf(" ⚠%-4s", untilText(ends)), cWorking
+				}
 			}
 			color := pctColor(pct)
 			barColor := color
 			if barColor == "" {
 				barColor = cDone
 			}
-			on, off := cells(pct, 5)
-			gs = append(gs, []span{sp(label+" ", cFaint), sp(on, barColor), sp(off, cFaint),
-				sp(fmt.Sprintf(" %2.0f%%", pct), color), sp(left, cQuiet)})
+			on, off := cells(pct, n)
+			bar := []span{sp(on, barColor), sp(off, cFaint)}
+			if elapsed >= 0 && elapsed <= 1 {
+				bar = paceBar(on+off, int(elapsed*float64(n)+0.5), len([]rune(on)), barColor)
+			}
+			g := append([]span{sp(label+" ", cFaint)}, bar...)
+			gs = append(gs, append(g, sp(fmt.Sprintf(" %2.0f%%", pct), color), sp(left, leftStyle)))
 		}
-		add("5h", in.FiveHour)
-		add("7d", in.SevenDay)
+		add("5h", in.FiveHour, 5*time.Hour, 6)
+		add("7d", in.SevenDay, 7*24*time.Hour, 5)
 		if len(gs) > 0 {
 			gs[0] = append([]span{sp(pr.Tag()+" ", p.accountColor(pr.Name))}, gs[0]...)
 			out = append(out, gs)
 		}
+	}
+	return out
+}
+
+// paceEnds estimates when a window runs out at the pace used so far; ok is
+// false early in the window (under 10%), when the guess would be noise.
+func paceEnds(pct, elapsed float64, window time.Duration) (time.Duration, bool) {
+	if elapsed < 0.1 || pct <= 0 {
+		return 0, false
+	}
+	perWindow := pct / elapsed // % per full window at this pace
+	return time.Duration((100 - pct) / perWindow * float64(window)), true
+}
+
+// paceBar is a usage bar with "│" where "now" falls in the window.
+func paceBar(cellsText string, at, on int, color string) []span {
+	r := []rune(cellsText)
+	at = min(max(at, 0), len(r))
+	var out []span
+	for i := 0; i <= len(r); i++ {
+		if i == at {
+			out = append(out, sp("│", cMuted))
+		}
+		if i == len(r) {
+			break
+		}
+		style := cFaint
+		if i < on {
+			style = color
+		}
+		out = append(out, sp(string(r[i]), style))
 	}
 	return out
 }

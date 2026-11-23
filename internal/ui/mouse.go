@@ -56,13 +56,14 @@ func mouseKey(params string, final byte) string {
 		return ""
 	}
 	b, err1 := strconv.Atoi(f[0])
+	x, err3 := strconv.Atoi(f[1])
 	y, err2 := strconv.Atoi(f[2])
-	if err1 != nil || err2 != nil {
+	if err1 != nil || err2 != nil || err3 != nil {
 		return ""
 	}
 	switch b &^ (4 | 8 | 16) { // without shift, meta, ctrl
 	case 0:
-		return fmt.Sprintf("mouse:click:%d", y-1)
+		return fmt.Sprintf("mouse:click:%d:%d", y-1, x-1)
 	case 64:
 		return "mouse:wheelup"
 	case 65:
@@ -82,12 +83,21 @@ func (p *Panel) handleMouse(k string) {
 		p.wheel("down")
 		return
 	}
-	row, err := strconv.Atoi(strings.TrimPrefix(k, "mouse:click:"))
+	pos := strings.Split(strings.TrimPrefix(k, "mouse:click:"), ":")
+	row, err := strconv.Atoi(pos[0])
 	if err != nil {
 		return
 	}
-	if p.mode == modeHelp {
+	col := -1
+	if len(pos) > 1 {
+		col, _ = strconv.Atoi(pos[1])
+	}
+	switch p.mode {
+	case modeHelp, modeTimeline:
 		p.closePicker()
+		return
+	case modeOverview:
+		p.clickTile(row, col)
 		return
 	}
 	if row < 0 || row >= len(p.rowTarget) || p.rowTarget[row] < 0 {

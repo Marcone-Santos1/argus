@@ -11,7 +11,7 @@ import (
 
 func TestParseMouse(t *testing.T) {
 	got := parseKeys([]byte("\x1b[<0;12;5M\x1b[<0;12;5m\x1b[<64;3;1M\x1b[<65;3;1M\x1b[<2;3;1Mj"))
-	want := []string{"mouse:click:4", "mouse:wheelup", "mouse:wheeldown", "j"}
+	want := []string{"mouse:click:4:11", "mouse:wheelup", "mouse:wheeldown", "j"}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("parseKeys: %q, want %q", got, want)
 	}

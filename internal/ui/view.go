@@ -58,6 +58,10 @@ func (p *Panel) render() {
 		lines = p.viewHelp()
 	case modeTemplates:
 		lines = p.viewTemplates()
+	case modeOverview:
+		lines = p.viewOverview()
+	case modeTimeline:
+		lines = p.viewTimeline()
 	default:
 		lines = p.viewList()
 	}
@@ -261,7 +265,7 @@ func (p *Panel) hintKeys() []string {
 		it := p.items[p.sel]
 		switch {
 		case it.agent >= 0:
-			keys := []string{"hint.enter", "hint.toggle"}
+			keys := []string{"hint.enter", "hint.overview"}
 			if p.agents[it.agent].Status == status.Waiting {
 				keys = append(keys, "hint.answer")
 			}
@@ -709,6 +713,8 @@ var helpKeys = []struct{ key, msg string }{
 	{"y", "help.answer"},
 	{"t", "help.templates"},
 	{"d", "help.diff"},
+	{"v", "help.overview"},
+	{"g", "help.timeline"},
 	{"< >", "help.width"},
 	{"click", "help.click"},
 	{"Esc", "help.hide"},

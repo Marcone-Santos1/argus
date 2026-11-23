@@ -54,6 +54,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
 | `Enter` | entra na sessão, abre a pasta, ou retoma a conversa antiga |
 | `→ ←` | abre / fecha uma pasta de conversas antigas |
+| `v` | visão geral: a tela de todas as sessões lado a lado; setas escolhem, Enter abre |
+| `g` | linha do tempo de hoje: quando cada sessão trabalhou, esperou você ou ficou parada |
 | `d` | diff: o que mudou na pasta selecionada, numa janela por cima (q fecha) |
 | `t` | modelos: abre uma sessão guardada (pasta, conta e primeira mensagem); com uma sessão selecionada, guarda ela como modelo |
 | `< >` | estreita / alarga a lista (ou arraste a borda; a largura fica guardada) |

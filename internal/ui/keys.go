@@ -29,8 +29,10 @@ func (p *Panel) handleKey(k string) {
 		p.keyAnswer(k)
 	case modeTemplates:
 		p.keyTemplates(k)
-	case modeHelp:
+	case modeHelp, modeTimeline:
 		p.closePicker() // any key closes the help (and leaves the zoom)
+	case modeOverview:
+		p.keyOverview(k)
 	case modeInput:
 		p.keyInput(k)
 	case modeFilter:
@@ -229,6 +231,10 @@ func (p *Panel) keyList(k string) {
 		p.openTemplates()
 	case "d":
 		p.showDiff()
+	case "v":
+		p.openOverview()
+	case "g":
+		p.openTimeline()
 	case "a":
 		p.switchAccount()
 	case "?":

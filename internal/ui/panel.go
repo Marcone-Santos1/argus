@@ -64,6 +64,8 @@ const (
 	modeHelp
 	modeAnswer
 	modeTemplates
+	modeOverview
+	modeTimeline
 )
 
 // Panel is the panel state.
@@ -116,6 +118,11 @@ type Panel struct {
 	res          map[string]sessRes    // per session: CPU and memory of its processes
 	cpuPrev      map[int]uint64        // CPU time per process at the last reading
 	cpuPrevAt    time.Time
+	cpuSeries    map[string][]float64 // per session: CPU readings of the last minute
+	ovSel        int                  // overview: selected tile
+	ov           ovLayout
+	screens      map[string][]string // overview: each session's screen
+	capturing    bool
 	tplFrom      string // session to save as a template (t)
 	tplSel       int
 	firstPrompt  string // first message of the next session started (templates)
@@ -195,7 +202,8 @@ func New(d Deps) *Panel {
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
 		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, shells: map[string]int{}, sized: map[string]string{},
-		res: map[string]sessRes{}, cpuPrev: map[int]uint64{},
+		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
+		screens: map[string][]string{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
@@ -306,6 +314,9 @@ func (p *Panel) tick() {
 	}
 	p.reading = p.d.Monitor.Sample()
 	p.sampleSessions(time.Now())
+	if p.mode == modeOverview {
+		p.captureScreens()
+	}
 	if p.reading.CPU >= 0 {
 		p.cpuHist = pushLast(p.cpuHist, p.reading.CPU)
 	}
@@ -413,6 +424,12 @@ func (p *Panel) reconcile() {
 		p.syncTitle(i)
 	}
 	p.saveSnapshot()
+	for id := range p.lastState {
+		if !live[id] {
+			p.logState(id, "", stClosed, time.Now())
+			delete(p.lastState, id)
+		}
+	}
 	for id := range p.usage {
 		if !live[id] {
 			delete(p.usage, id)
@@ -457,6 +474,9 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	prev, seen := p.lastState[a.ID]
 	a.Status, a.Since = st, since
 	p.lastState[a.ID] = st
+	if !seen || prev != st {
+		p.logState(a.ID, p.sessionText(*a), st, since)
+	}
 	if seen && prev == status.Working && st != status.Working {
 		p.refreshRecent() // the turn ended: the conversation may have a (new) title
 		p.refreshExtras(*a)
