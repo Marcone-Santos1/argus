@@ -12,6 +12,7 @@ import (
 	"github.com/Marcone-Santos1/argus/internal/gitinfo"
 	"github.com/Marcone-Santos1/argus/internal/history"
 	"github.com/Marcone-Santos1/argus/internal/i18n"
+	"github.com/Marcone-Santos1/argus/internal/procs"
 	"github.com/Marcone-Santos1/argus/internal/status"
 	"github.com/Marcone-Santos1/argus/internal/usage"
 )
@@ -59,6 +60,34 @@ func (p *Panel) gitText(dir string) string {
 		s += fmt.Sprintf(" ↑%d", g.Ahead)
 	}
 	return s
+}
+
+// ---------- background shells ----------
+
+// checkShells counts the commands each idle or finished session left running
+// in the background. It reads the process table once (one sysctl, no child
+// process) when a turn ends, and on the 2 s tick only while some are running.
+func (p *Panel) checkShells() {
+	var roots []int
+	for _, a := range p.agents {
+		if a.PID > 0 && a.Status != status.Working {
+			roots = append(roots, a.PID)
+		}
+	}
+	counts, ok := procs.Count(roots)
+	if !ok && len(roots) > 0 {
+		return
+	}
+	next := map[string]int{}
+	for i, a := range p.agents {
+		if n := counts[a.PID]; n > 0 && a.Status != status.Working {
+			next[a.ID] = n
+		}
+		if next[a.ID] != p.shells[a.ID] {
+			defer p.syncTitle(i)
+		}
+	}
+	p.shells = next
 }
 
 // ---------- account usage (from the status line) ----------

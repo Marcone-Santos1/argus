@@ -17,6 +17,7 @@ var messages = map[string][2]string{
 	"hint.expand":      {"⏎ open/close", "⏎ abre/fecha"},
 	"hint.answer":      {"y answer", "y responde"},
 	"list.procs":       {"proc", "proc"},
+	"list.shells":      {"⚙ %d running", "⚙ %d rodando"},
 	"st.working":       {"working", "trabalhando"},
 	"st.waiting":       {"needs you", "espera você"},
 	"st.done":          {"done", "pronto"},

@@ -107,3 +107,20 @@ func TestUntilText(t *testing.T) {
 		}
 	}
 }
+
+func TestBackgroundShellsKeepItRunning(t *testing.T) {
+	p := testPanel(t)
+	now := time.Now()
+	a := agent{ID: "a1", Name: "api", Dir: "/p/api", Profile: "personal", Status: status.Done, Since: now}
+	p.agents = []agent{a}
+	p.reply["a1"] = "Enquanto a suíte roda, deixo o commit pronto."
+	p.shells["a1"] = 1
+	rows := p.agentRows(a, 1, false, now, 60)
+	got := visible(strings.Join(rows, "\n"))
+	if strings.Contains(got, "✓") || !strings.Contains(got, "1 ") || !strings.Contains(rows[0], cWorking) {
+		t.Fatalf("a done session with a background shell still shows as running: %q", got)
+	}
+	if h := p.panelTitle(); strings.Contains(h, "✓") {
+		t.Fatalf("counted as done in the title: %q", h)
+	}
+}

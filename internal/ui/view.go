@@ -193,7 +193,11 @@ func section(label string, w int) string {
 func (p *Panel) panelTitle() string {
 	counts := map[string]int{}
 	for _, a := range p.agents {
-		counts[a.Status]++
+		st := a.Status
+		if p.shells[a.ID] > 0 {
+			st = status.Working // still running in the background
+		}
+		counts[st]++
 	}
 	t := " #[fg=#7aa2f7,bold]argus#[nobold] "
 	for _, st := range []string{status.Working, status.Waiting, status.Done} {
@@ -338,8 +342,10 @@ var spinFrames = []string{"◜", "◝", "◞", "◟"}
 // account tag on the right.
 func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []string {
 	icon, color, _ := statusStyle(a.Status)
-	if a.Status == status.Working {
+	shells := p.shells[a.ID]
+	if a.Status == status.Working || shells > 0 {
 		icon = spinFrames[int(now.UnixMilli()/500)%len(spinFrames)]
+		color = cWorking
 	}
 	waiting := a.Status == status.Waiting
 	el := ""
@@ -391,6 +397,11 @@ func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []st
 		left = []span{sp(q, cWaiting)}
 	case reply != "" && replyShown(a):
 		left = []span{sp("↳ ", cFaint), sp(reply, "\x1b[3m"+cQuiet)}
+		if shells > 0 {
+			left = append([]span{sp(i18n.T("list.shells", shells), cWorking), sp(" · ", cFaint)}, left...)
+		}
+	case shells > 0:
+		left = []span{sp(i18n.T("list.shells", shells), cWorking)}
 	case ctx:
 		left = ctxSpans(in.Context)
 		ctx = false

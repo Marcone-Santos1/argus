@@ -46,6 +46,7 @@ type agent struct {
 	Worktree                     string // source repository when running in a worktree
 	Created                      int64
 	Displayed                    bool
+	PID                          int // the pane's process (to find its background shells)
 	Status                       string
 	Since                        time.Time
 }
@@ -110,6 +111,7 @@ type Panel struct {
 	reply        map[string]string     // per session: start of Claude's last reply
 	usage        map[string]usage.Info // per session: the status line's last report
 	extrasSeen   map[string]bool       // sessions whose git/reply were read once
+	shells       map[string]int        // per session: commands still running in the background
 	tplFrom      string                // session to save as a template (t)
 	tplSel       int
 	firstPrompt  string // first message of the next session started (templates)
@@ -188,7 +190,7 @@ func New(d Deps) *Panel {
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
-		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, shells: map[string]int{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
@@ -293,6 +295,9 @@ func (p *Panel) tick() {
 	if p.msg != "" && time.Now().After(p.msgUntil) {
 		p.msg = ""
 	}
+	if len(p.shells) > 0 {
+		p.checkShells() // only while something runs in the background
+	}
 	if p.d.Monitor == nil {
 		return
 	}
@@ -346,7 +351,7 @@ func (p *Panel) reconcile() {
 				continue
 			}
 			a := agent{ID: pn.AgentID, Pane: pn.ID, Profile: pn.Profile, Dir: pn.Dir, Name: pn.Name,
-				Session: pn.Session, Worktree: pn.Worktree, Created: pn.Created, Displayed: pn.InMain()}
+				Session: pn.Session, Worktree: pn.Worktree, Created: pn.Created, Displayed: pn.InMain(), PID: pn.PID}
 			agents = append(agents, a)
 			live[a.ID] = true
 		}
@@ -386,12 +391,19 @@ func (p *Panel) reconcile() {
 		p.refreshStatus(i, false)
 	}
 	p.rebuildItems(key)
+	fresh := false
 	for i := range p.agents {
-		p.syncTitle(i)
 		if a := p.agents[i]; !p.extrasSeen[a.ID] {
 			p.extrasSeen[a.ID] = true
 			p.refreshExtras(a)
+			fresh = true
 		}
+	}
+	if fresh {
+		p.checkShells()
+	}
+	for i := range p.agents {
+		p.syncTitle(i)
 	}
 	p.saveSnapshot()
 	for id := range p.usage {
@@ -441,6 +453,7 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 	if seen && prev == status.Working && st != status.Working {
 		p.refreshRecent() // the turn ended: the conversation may have a (new) title
 		p.refreshExtras(*a)
+		p.checkShells()
 	}
 	if st == status.Waiting && (prev != st || !seen) {
 		p.capturePromptSoon(a.ID)
@@ -559,11 +572,17 @@ func (p *Panel) saveMetrics() {
 func (p *Panel) syncTitle(i int) {
 	a := p.agents[i]
 	icon, color, word := statusStyle(a.Status)
+	if p.shells[a.ID] > 0 {
+		icon, color = "◜", cWorking
+	}
 	esc := func(s string) string { return strings.ReplaceAll(s, "#", "##") }
 	title := fmt.Sprintf(" #[fg=%s]%s#[default] #[bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg=#6c717c] · %s · #[fg=%s]%s ",
 		tmuxColor(color), icon, esc(p.sessionText(a)),
 		p.accountHex(a.Profile), esc(p.tag(a.Profile)),
 		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))
+	if n := p.shells[a.ID]; n > 0 {
+		title += fmt.Sprintf("#[fg=%s]· %s ", tmuxColor(cWorking), i18n.T("list.shells", n))
+	}
 	if in, ok := p.profileUsage(a.Profile); ok && !in.FiveHour.Expired(time.Now()) {
 		c := pctColor(in.FiveHour.Percent)
 		if c == "" {
