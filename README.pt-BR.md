@@ -78,7 +78,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `e` | coluna de código: um editor ([Fresh](https://getfresh.dev) por padrão, `editor` no config.toml) na pasta da sessão, entre a lista e a sessão; abre cada arquivo que o agente altera |
 | `b` | recolhe a lista numa faixa fina (e abre de novo) |
 | `L` | alterna entre o visual novo e o clássico |
-| `T` | alterna entre os temas Argus escuro e claro, no Argus e no Claude Code (o `/theme` no Claude faz o mesmo pelo outro lado) |
+| `T` | alterna o tema Argus entre escuro e claro, no Argus e, na hora, em toda sessão do Claude Code com o tema "Argus" (o `argus install` o coloca no `/theme` do Claude) |
 | `1`–`9` | vai direto para a sessão |
 | `q` | fecha o painel; as sessões continuam no tmux |
 

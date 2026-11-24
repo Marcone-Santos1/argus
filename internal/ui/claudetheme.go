@@ -12,6 +12,7 @@ import (
 
 	"github.com/Marcone-Santos1/argus/internal/history"
 	"github.com/Marcone-Santos1/argus/internal/i18n"
+	"github.com/Marcone-Santos1/argus/internal/install"
 )
 
 // ---------- the look follows the theme picked in Claude Code ----------
@@ -79,6 +80,15 @@ func (p *Panel) themeCheck(force bool) {
 	if !changed {
 		return
 	}
+	// The two fixed themes of an earlier version became one: the set moves
+	// to the mode.
+	switch newest {
+	case "custom:argus-dark", "custom:argus-light":
+		p.prefs.ThemeMode = map[bool]string{true: "light", false: ""}[newest == "custom:argus-light"]
+		_ = p.prefs.Save()
+		newest = argusTheme
+	}
+	p.writeArgusTheme(p.prefs.ThemeMode == "light")
 	p.claudeTheme = newest
 	// The last pick wins: the other accounts get it too.
 	for _, f := range files {
@@ -117,6 +127,9 @@ func setTheme(path, theme string) bool {
 // themeIsLight tells a light theme: a built-in one ("light", "light-ansi"…)
 // or a custom one ("custom:<slug>") whose base is light.
 func (p *Panel) themeIsLight(theme string) bool {
+	if theme == argusTheme {
+		return p.prefs.ThemeMode == "light"
+	}
 	if slug, ok := strings.CutPrefix(theme, "custom:"); ok {
 		for _, f := range p.claudeSettings() {
 			data, err := os.ReadFile(filepath.Join(filepath.Dir(f), "themes", slug+".json"))
@@ -178,27 +191,48 @@ func (p *Panel) setFreshTheme(light bool) {
 	_ = os.WriteFile(path, out, 0o644)
 }
 
-// toggleTheme switches between Argus dark and Argus light (key T): it is
-// written to every Claude account, so Claude and the look change together.
-func (p *Panel) toggleTheme() {
-	want := "custom:argus-light"
-	if p.themeIsLight(p.claudeTheme) {
-		want = "custom:argus-dark"
+// argusTheme is Argus's theme as Claude names it in the settings.
+const argusTheme = "custom:" + install.ClaudeThemeSlug
+
+// writeArgusTheme makes the Argus theme file of every Claude account dark or
+// light. Claude reloads a theme file when it changes: every open session on
+// the Argus theme follows at once.
+func (p *Panel) writeArgusTheme(light bool) {
+	body := []byte(install.ClaudeTheme(light))
+	for _, pr := range p.d.Config.Profiles {
+		if pr.Label() != history.Claude {
+			continue
+		}
+		f := filepath.Join(pr.ClaudeConfigDir(p.d.Paths.Home), "themes", install.ClaudeThemeSlug+".json")
+		if cur, err := os.ReadFile(f); err == nil && string(cur) == string(body) {
+			continue
+		}
+		_ = os.MkdirAll(filepath.Dir(f), 0o755)
+		_ = os.WriteFile(f, body, 0o644)
 	}
-	n := 0
+}
+
+// toggleTheme switches the Argus theme between dark and light (key T), in
+// Argus and in every Claude session using it, with no restart.
+func (p *Panel) toggleTheme() {
+	light := p.prefs.ThemeMode != "light"
+	if light {
+		p.prefs.ThemeMode = "light"
+	} else {
+		p.prefs.ThemeMode = ""
+	}
+	_ = p.prefs.Save()
+	p.writeArgusTheme(light)
+	// The accounts on another theme move to the Argus one (a session started
+	// before that takes it when it restarts).
 	for _, f := range p.claudeSettings() {
-		if setTheme(f, want) {
-			n++
+		if p.themeFiles[f].theme != argusTheme && setTheme(f, argusTheme) {
 			if fi, err := os.Stat(f); err == nil {
-				p.themeFiles[f] = themeFile{fi.ModTime(), want}
+				p.themeFiles[f] = themeFile{fi.ModTime(), argusTheme}
 			}
 		}
 	}
-	if n == 0 {
-		p.flash(i18n.T("msg.noTheme"))
-		return
-	}
-	p.claudeTheme = want
+	p.claudeTheme = argusTheme
 	p.followTheme()
-	p.flash(i18n.T("msg.theme." + map[bool]string{true: "light", false: "dark"}[want == "custom:argus-light"]))
+	p.flash(i18n.T("msg.theme." + map[bool]string{true: "light", false: "dark"}[light]))
 }

@@ -371,6 +371,8 @@ type Prefs struct {
 	PanelWidth int `json:"panel_width,omitempty"`
 	// Collapsed are the projects whose sessions the app look hides.
 	Collapsed map[string]bool `json:"collapsed,omitempty"`
+	// ThemeMode is the Argus theme's set: "light" or "" (dark), key T.
+	ThemeMode string `json:"theme_mode,omitempty"`
 	// Look is how the list is drawn: "" (classic) or "app".
 	Look string `json:"look,omitempty"`
 	path string

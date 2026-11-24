@@ -51,7 +51,7 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 		t.Fatal("light after the pick")
 	}
 	data, _ := os.ReadFile(emp)
-	if gjson.GetBytes(data, "theme").String() != "custom:argus-light" || gjson.GetBytes(data, "other").Int() != 1 {
+	if gjson.GetBytes(data, "theme").String() != "custom:argus" || gjson.GetBytes(data, "other").Int() != 1 {
 		t.Fatalf("other account: %s", data)
 	}
 	if fi, _ := os.Stat(emp); fi.Mode().Perm() != 0o600 {
@@ -61,16 +61,25 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	if gjson.GetBytes(fresh, "theme").String() != "argus-light" {
 		t.Fatalf("fresh: %s", fresh)
 	}
-	// T goes back to Argus dark, in every account.
+	// An earlier version's fixed theme became the one Argus theme, light.
+	argus := func(dir string) string {
+		data, _ := os.ReadFile(filepath.Join(home, dir, "themes", "argus.json"))
+		return gjson.GetBytes(data, "base").String()
+	}
+	if argus(".claude") != "light" || argus(".claude-work") != "light" {
+		t.Fatalf("theme files: %q %q", argus(".claude"), argus(".claude-work"))
+	}
+	// T turns it dark: the theme file changes (Claude reloads it live), the
+	// accounts stay on it.
 	p.handleKey("T")
 	for _, f := range []string{pes, emp} {
 		data, _ := os.ReadFile(f)
-		if gjson.GetBytes(data, "theme").String() != "custom:argus-dark" {
+		if gjson.GetBytes(data, "theme").String() != "custom:argus" {
 			t.Fatalf("T: %s", data)
 		}
 	}
-	if lightLook {
-		t.Fatal("dark after T")
+	if lightLook || argus(".claude") != "dark" || argus(".claude-work") != "dark" {
+		t.Fatalf("dark after T: %v %q", lightLook, argus(".claude"))
 	}
 	p.handleKey("T")
 	if !lightLook {

@@ -1,5 +1,5 @@
 {
-  "name": "Argus light",
+  "name": "Argus",
   "base": "light",
   "overrides": {
     "claude": "#c4613f",

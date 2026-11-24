@@ -55,8 +55,21 @@ var (
 // FreshThemes are Fresh's theme files, by name (in ~/.config/fresh/themes).
 var FreshThemes = map[string]*string{"argus-dark": &freshThemeDark, "argus-light": &freshThemeLight}
 
-// ClaudeThemes are the theme files, by slug (the file name in <config>/themes).
-var ClaudeThemes = map[string]*string{"argus-dark": &claudeThemeDark, "argus-light": &claudeThemeLight}
+// ClaudeThemeSlug is Argus's theme in Claude Code: one theme, "Argus", whose
+// file the panel rewrites dark or light (key T). Claude reloads a theme file
+// when it changes, so every open session follows without restarting.
+const ClaudeThemeSlug = "argus"
+
+// ClaudeTheme is the theme file's content for the light or the dark set.
+func ClaudeTheme(light bool) string {
+	if light {
+		return claudeThemeLight
+	}
+	return claudeThemeDark
+}
+
+// oldClaudeThemes were two fixed themes, replaced by the one above.
+var oldClaudeThemes = []string{"argus-dark", "argus-light"}
 
 // PluginFile is the plugin's name inside opencode's plugin directory.
 const PluginFile = "argus-status.ts"
@@ -255,12 +268,16 @@ func Install(p paths.Paths, out io.Writer) error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		for slug, body := range ClaudeThemes {
-			if err := os.WriteFile(filepath.Join(dir, slug+".json"), []byte(*body), 0o644); err != nil {
+		for _, old := range oldClaudeThemes {
+			_ = os.Remove(filepath.Join(dir, old+".json"))
+		}
+		f := filepath.Join(dir, ClaudeThemeSlug+".json")
+		if _, err := os.Stat(f); err != nil { // the panel keeps it dark or light
+			if err := os.WriteFile(f, []byte(ClaudeTheme(false)), 0o644); err != nil {
 				return err
 			}
 		}
-		fmt.Fprintln(out, "themes claude:    ", dir, "(argus-dark, argus-light)")
+		fmt.Fprintln(out, "theme claude:     ", f)
 	}
 	if _, err := exec.LookPath("fresh"); err == nil {
 		dir := filepath.Join(p.Home, ".config", "fresh", "themes")
@@ -320,7 +337,7 @@ func Uninstall(p paths.Paths, out io.Writer) error {
 	}
 	for _, pr := range cfg.Profiles {
 		if pr.Label() == "claude" {
-			for slug := range ClaudeThemes {
+			for _, slug := range append(oldClaudeThemes, ClaudeThemeSlug) {
 				_ = os.Remove(filepath.Join(pr.ClaudeConfigDir(p.Home), "themes", slug+".json"))
 			}
 		}
