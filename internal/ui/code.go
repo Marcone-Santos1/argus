@@ -6,7 +6,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"time"
 
+	"github.com/Marcone-Santos1/argus/internal/config"
 	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
@@ -102,7 +104,7 @@ func (p *Panel) editorFor(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	title := fmt.Sprintf(" #[fg=#d97757]✎#[default] #[bold]%s#[nobold] ", strings.ReplaceAll(p.d.Paths.Pretty(dir), "#", "##"))
+	title := fmt.Sprintf(" #[fg=#d97757]✎ #[fg=#d7dae0,bold]%s#[nobold] ", strings.ReplaceAll(p.d.Paths.Pretty(dir), "#", "##"))
 	_ = p.d.Tmux.SetPaneOptions(pane, "@argus_role", tmux.RoleEditor, "@argus_dir", dir, "@argus_title", title)
 	p.editors[dir] = pane
 	return pane, nil
@@ -111,4 +113,44 @@ func (p *Panel) editorFor(dir string) (string, error) {
 // editorWindow names the hidden window of a folder's editor.
 func editorWindow(dir string) string {
 	return fmt.Sprintf("ed-%x", sha1.Sum([]byte(dir)))[:11]
+}
+
+// codeOnlyChoice: a new session (not a resume, an account switch or a
+// worktree) can also open just the editor, with no agent.
+func (p *Panel) codeOnlyChoice() bool {
+	return p.resume == nil && p.switching == "" && p.worktreeOf == "" && p.chosenDir != ""
+}
+
+func (p *Panel) profCount() int {
+	if p.codeOnlyChoice() {
+		return len(p.profChoices) + 1
+	}
+	return len(p.profChoices)
+}
+
+// openCodeOnly opens a folder in the code column, without an agent.
+func (p *Panel) openCodeOnly(dir string) {
+	p.closePicker()
+	p.prefs.Dirs[dir] = config.DirPref{Profile: p.prefs.Dirs[dir].Profile, Last: time.Now().Unix()}
+	_ = p.prefs.Save()
+	if p.editorPane != "" {
+		p.showEditor(dir)
+		_, _ = p.d.Tmux.Run("select-pane", "-t", p.editorPane)
+		return
+	}
+	pane, err := p.editorFor(dir)
+	if err != nil {
+		p.flash(err.Error())
+		return
+	}
+	args := []string{"join-pane", "-h", "-b", "-d", "-l", "50%", "-s", pane, "-t", p.displayPane}
+	if p.displayPane == "" {
+		args = []string{"join-pane", "-h", "-d", "-s", pane, "-t", p.d.Self}
+	}
+	if _, err := p.d.Tmux.Run(args...); err != nil {
+		p.flash(err.Error())
+	}
+	p.reconcile()
+	p.applyWidth()
+	_, _ = p.d.Tmux.Run("select-pane", "-t", pane)
 }

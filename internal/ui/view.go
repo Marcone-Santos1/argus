@@ -634,7 +634,11 @@ func (p *Panel) viewPicker() []string {
 		if pr.Last > 0 {
 			mark = "· "
 		}
-		line := fit(" "+mark+pr.Rel, w)
+		text := " " + mark + pr.Rel
+		if pr.Create {
+			text = " ＋ " + i18n.T("pick.create", pr.Rel)
+		}
+		line := fit(text, w)
 		if i == p.pickSel {
 			line = bgSel + line + reset
 		}
@@ -669,9 +673,19 @@ func (p *Panel) viewProfiles() []string {
 			body = append(body, fit(text, w))
 		}
 	}
+	n := len(p.profChoices)
+	if p.codeOnlyChoice() {
+		text := fmt.Sprintf(" %d  %s", n+1, i18n.T("pick.codeOnly"))
+		if p.profSel == n {
+			body = append(body, bgSel+fit(text, w)+reset)
+		} else {
+			body = append(body, cQuiet+fit(text, w)+reset)
+		}
+		n++
+	}
 	foot := []string{dim + strings.Repeat("─", w) + reset}
 	foot = append(foot, wrapHints(tr("hint.pick", "hint.open", "hint.back"), w)...)
-	return p.layoutClick(body, listTargets(3, len(p.profChoices)), foot, p.profSel+3)
+	return p.layoutClick(body, listTargets(3, n), foot, p.profSel+3)
 }
 
 func (p *Panel) viewHistory() []string {

@@ -81,4 +81,31 @@ command = "sleep 300"
 	if len(pn.editors) != 2 {
 		t.Fatalf("editors keep running hidden: %v", pn.editors)
 	}
+	// "Code only" from the new-session picker: the folder's editor, no agent.
+	d3 := t.TempDir()
+	pn.openCodeOnly(d3)
+	if got, want := layout(), "panel: editor:"+d3+" agent:"+d1; got != want {
+		t.Fatalf("code only:\n got %s\nwant %s (msg %q)", got, want, pn.msg)
+	}
+	if len(pn.agents) != 2 {
+		t.Fatalf("no agent started: %d", len(pn.agents))
+	}
+}
+
+func TestBrowseOffersCreate(t *testing.T) {
+	home := t.TempDir()
+	if err := os.MkdirAll(home+"/Code/desafio", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := browseDirs("~/Code/desafios-resolvidos", home, 10)
+	if len(got) != 1 || !got[0].Create || got[0].Path != home+"/Code/desafios-resolvidos" {
+		t.Fatalf("create offer: %+v", got)
+	}
+	got = browseDirs("~/Code/desa", home, 10)
+	if len(got) != 2 || got[0].Rel != "~/Code/desafio/" || !got[1].Create {
+		t.Fatalf("match then create: %+v", got)
+	}
+	if got := browseDirs("~/Code/desafio/", home, 10); len(got) != 1 || got[0].Create {
+		t.Fatalf("an existing folder is not offered for creation: %+v", got)
+	}
 }

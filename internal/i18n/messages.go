@@ -100,6 +100,8 @@ var messages = map[string][2]string{
 	"history.inText":    {"+%d in the text", "+%d no texto"},
 	"help.answer":       {"answer a session waiting for you, from the list", "responde uma sessão que espera você, daqui da lista"},
 	"help.rail":         {"fold the list into a thin rail (b again opens it)", "recolhe a lista numa faixa fina (b de novo abre)"},
+	"pick.create":       {"create %s", "criar %s"},
+	"pick.codeOnly":     {"code only, no AI (opens the folder in the editor)", "só código, sem IA (abre a pasta no editor)"},
 	"help.code":         {"open or close the code column: an editor in the session's folder", "abre ou fecha a coluna de código: um editor na pasta da sessão"},
 	"msg.noEditor":      {"Editor not found: %s (editor in config.toml)", "Editor não encontrado: %s (editor no config.toml)"},
 	"help.look":         {"switch between the classic and the new look of the list", "alterna entre o visual clássico e o novo da lista"},

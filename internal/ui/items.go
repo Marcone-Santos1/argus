@@ -184,6 +184,7 @@ func (p *Panel) nthAgentItem(n int) int {
 type project struct {
 	Path, Rel string
 	Last      int64
+	Create    bool // a typed path that does not exist yet: Enter creates it
 }
 
 func scanProjects(cfg *config.Config, prefs *config.Prefs, home string) []project {

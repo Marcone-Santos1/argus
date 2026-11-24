@@ -123,6 +123,12 @@ func (p *Panel) keyPickDir(k string) {
 		if len(p.filtered) == 0 {
 			return
 		}
+		if pr := p.filtered[p.pickSel]; pr.Create {
+			if err := os.MkdirAll(pr.Path, 0o755); err != nil {
+				p.flash(err.Error())
+				return
+			}
+		}
 		p.chosenDir = p.filtered[p.pickSel].Path
 		p.resume = nil
 		p.backMode = modePickDir
@@ -177,10 +183,14 @@ func (p *Panel) keyPickProfile(k string) {
 			p.profSel--
 		}
 	case "down", "j":
-		if p.profSel < len(p.profChoices)-1 {
+		if p.profSel < p.profCount()-1 {
 			p.profSel++
 		}
 	case "enter":
+		if p.profSel == len(p.profChoices) && p.codeOnlyChoice() {
+			p.openCodeOnly(p.chosenDir)
+			return
+		}
 		if p.switching != "" {
 			p.doSwitch(p.profChoices[p.profSel])
 			return
@@ -188,7 +198,7 @@ func (p *Panel) keyPickProfile(k string) {
 		p.startAgent(p.chosenDir, p.profChoices[p.profSel], p.resume)
 	default:
 		if len(k) == 1 && k >= "1" && k <= "9" {
-			if i := int(k[0] - '1'); i < len(p.profChoices) {
+			if i := int(k[0] - '1'); i < p.profCount() {
 				p.profSel = i
 			}
 		}

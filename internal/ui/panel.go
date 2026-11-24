@@ -670,7 +670,7 @@ func (p *Panel) syncTitle(i int) {
 		icon, color = "◜", cWorking
 	}
 	esc := func(s string) string { return strings.ReplaceAll(s, "#", "##") }
-	title := fmt.Sprintf(" #[fg=%s]%s#[default] #[bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg=#6c717c] · %s · #[fg=%s]%s ",
+	title := fmt.Sprintf(" #[fg=%s]%s #[fg=#d7dae0,bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg=#6c717c] · %s · #[fg=%s]%s ",
 		tmuxColor(color), icon, esc(p.sessionText(a)),
 		p.accountHex(a.Profile), esc(p.tag(a.Profile)),
 		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))

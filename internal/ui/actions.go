@@ -465,6 +465,27 @@ func isPathQuery(q string) bool {
 // start with the last part (case-insensitive). Hidden ones only show when
 // the last part starts with a dot.
 func browseDirs(q, home string, limit int) []project {
+	out := listDirs(q, home, limit)
+	// A new folder inside an existing one: offer to create it.
+	full := q
+	if full == "~" || strings.HasPrefix(full, "~/") {
+		full = home + full[1:]
+	}
+	if part := filepath.Base(full); !strings.HasSuffix(full, "/") && !strings.HasPrefix(part, ".") {
+		if _, err := os.Stat(full); os.IsNotExist(err) {
+			if fi, err := os.Stat(filepath.Dir(full)); err == nil && fi.IsDir() {
+				rel := full
+				if r, err := filepath.Rel(home, full); err == nil && !strings.HasPrefix(r, "..") {
+					rel = "~/" + r + "/"
+				}
+				out = append(out, project{Path: filepath.Clean(full), Rel: rel, Create: true})
+			}
+		}
+	}
+	return out
+}
+
+func listDirs(q, home string, limit int) []project {
 	full := q
 	if full == "~" || strings.HasPrefix(full, "~/") {
 		full = home + full[1:]

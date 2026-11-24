@@ -321,7 +321,7 @@ func TestPickAnyFolder(t *testing.T) {
 		}
 		return strings.Join(out, " ")
 	}
-	if got := names(browseDirs("~/Code/ap", home, 10)); got != "~/Code/api/ ~/Code/Apps/" {
+	if got := names(browseDirs("~/Code/ap", home, 10)); got != "~/Code/api/ ~/Code/Apps/ ~/Code/ap/" { // the last: create it
 		t.Fatalf("prefix: %q", got)
 	}
 	if got := names(browseDirs("~/Code/", home, 10)); got != "~/Code/ ~/Code/api/ ~/Code/Apps/" {
