@@ -74,3 +74,28 @@ func TestTabTitle(t *testing.T) {
 		t.Fatalf("narrow tabs: %q", tabs)
 	}
 }
+
+func TestClickTab(t *testing.T) {
+	p := testPanel(t)
+	p.w = 40
+	p.prefs.Look = lookApp
+	p.dispW = 100
+	p.agents = []agent{
+		{ID: "a1", Dir: "/p/api", Name: "Api work", Status: status.Done, Created: 1, Displayed: true},
+		{ID: "b1", Dir: "/p/site", Name: "Site fix", Status: status.Done, Created: 2},
+	}
+	p.rebuildItems("a:a1")
+	p.tabTitle(p.agents[0])
+	if len(p.tabHits) != 2 {
+		t.Fatalf("hits: %+v", p.tabHits)
+	}
+	x := p.w + 1 + titleIndent + p.tabHits[1].from + 1
+	p.clickTab(x, 1) // not the border row: nothing
+	if p.selKey() != "a:a1" {
+		t.Fatalf("moved on a body click: %s", p.selKey())
+	}
+	p.clickTab(x, 0)
+	if p.selKey() != "a:b1" {
+		t.Fatalf("tab click: %s", p.selKey())
+	}
+}

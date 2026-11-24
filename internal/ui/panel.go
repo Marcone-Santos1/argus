@@ -150,8 +150,9 @@ type Panel struct {
 	cpuHist []float64 // last CPU readings, for the footer sparkline
 	memHist []float64 // last memory readings (% in use)
 
-	dispW         int    // width of the session shown on the right
-	statusText    string // what the status line shows (app look)
+	tabHits       []tabHit // where each tab is on the session's border
+	dispW         int      // width of the session shown on the right
+	statusText    string   // what the status line shows (app look)
 	statusLeft    string
 	statusAt      time.Time
 	expanded      map[string]bool   // folders of past conversations opened in the list
@@ -610,6 +611,15 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 			p.reconcile()
 			p.refreshRecent()
+		}
+	case name == "_click":
+		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+			if data, err := os.ReadFile(ev.Name); err == nil {
+				var x, y int
+				if n, _ := fmt.Sscan(string(data), &x, &y); n == 2 {
+					p.clickTab(x, y)
+				}
+			}
 		}
 	case name == "_bench":
 		if data, err := os.ReadFile(ev.Name); err == nil && len(data) > 0 {

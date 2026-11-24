@@ -155,6 +155,7 @@ func (p *Panel) tabTitle(shown agent) string {
 	type tab struct {
 		text string
 		on   bool
+		id   string
 	}
 	var tabs []tab
 	at := 0
@@ -177,7 +178,7 @@ func (p *Panel) tabTitle(shown agent) string {
 			at = len(tabs)
 		}
 		t := style + " " + tmuxSpans([]span{dot}) + style + " " + tmuxSpans([]span{p.agentGlyph(a.Profile)}) + style + " " + strings.ReplaceAll(name, "#", "##") + " "
-		tabs = append(tabs, tab{t, on})
+		tabs = append(tabs, tab{t, on, a.ID})
 	}
 	// Keep the shown tab and its neighbours when they do not all fit.
 	room := max(p.dispW-4, 20)
@@ -197,16 +198,49 @@ func (p *Panel) tabTitle(shown agent) string {
 		}
 	}
 	var b strings.Builder
+	col := 0
+	hits := p.tabHits[:0]
 	if lo > 0 {
 		b.WriteString("#[default,fg=#4c4c55]‹")
+		col++
 	}
 	for _, t := range tabs[lo:hi] {
+		n := width(stripTmux(t.text))
+		hits = append(hits, tabHit{col, col + n, t.id})
+		col += n + 1
 		b.WriteString(t.text + "#[default,fg=#26262b]│")
 	}
+	p.tabHits = hits
 	if hi < len(tabs) {
 		b.WriteString("#[default,fg=#4c4c55]›")
 	}
 	return b.String() + "#[default]"
+}
+
+// tabHit is where a tab sits on the border, in columns from the title's start.
+type tabHit struct {
+	from, to int
+	id       string
+}
+
+// tmux draws a pane's title this many columns right of the pane's left edge.
+const titleIndent = 2
+
+// clickTab shows the session whose tab was clicked (x, y in the window).
+func (p *Panel) clickTab(x, y int) {
+	if !p.appLook() || y != 0 || x <= p.w {
+		return
+	}
+	col := x - (p.w + 1) - titleIndent
+	for _, h := range p.tabHits {
+		if col >= h.from && col < h.to {
+			if p.selectKey("a:" + h.id) {
+				p.swapC = nil
+				p.showSelected()
+			}
+			return
+		}
+	}
 }
 
 // stripTmux removes tmux style sequences (#[...]) and unescapes ##.
