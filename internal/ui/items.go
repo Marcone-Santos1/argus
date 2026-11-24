@@ -82,6 +82,7 @@ func (p *Panel) rebuildItems(keep string) {
 			p.items = append(p.items, item{dir: d, agent: i})
 		}
 	}
+	sessions := len(p.items)
 	var dirs []string
 	byDir := map[string][]history.Entry{}
 	count := map[string]int{}
@@ -123,6 +124,9 @@ func (p *Panel) rebuildItems(keep string) {
 				p.items = append(p.items, item{dir: d, agent: -1, entry: e})
 			}
 		}
+	}
+	if p.appLook() {
+		p.items = p.appItems(append([]item{}, p.items[:sessions]...), append([]item{}, p.items[sessions:]...))
 	}
 	if keep == "" || !p.selectKey(keep) {
 		// A conversation of a folder that closed: select the folder.

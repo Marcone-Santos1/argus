@@ -648,7 +648,7 @@ const diffScript = `cd "$1" 2>/dev/null || exit 0
 // showDiff opens, over the screen, what changed in the selected session's
 // (or folder's) directory. q closes it.
 func (p *Panel) showDiff() {
-	if p.sel < 0 || p.sel >= len(p.items) {
+	if p.sel < 0 || p.sel >= len(p.items) || strings.HasPrefix(p.items[p.sel].dir, "\x00") {
 		return
 	}
 	dir := p.items[p.sel].dir

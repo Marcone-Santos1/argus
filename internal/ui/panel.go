@@ -227,6 +227,9 @@ func (p *Panel) Run() error {
 		}
 	}
 	_ = p.d.Tmux.SetPaneOptions(p.d.Self, "@argus_role", tmux.RolePanel)
+	if p.appLook() {
+		p.applyLookBg()
+	}
 
 	old, err := term.MakeRaw(int(os.Stdin.Fd()))
 	if err != nil {

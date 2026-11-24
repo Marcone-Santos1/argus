@@ -69,7 +69,11 @@ func (p *Panel) frame() []string {
 	case modeTimeline:
 		lines = p.viewTimeline()
 	default:
-		lines = p.viewList()
+		if p.appLook() {
+			lines = p.viewListApp()
+		} else {
+			lines = p.viewList()
+		}
 		if p.mode == modeConfirm && len(lines) >= 2 {
 			// The question also goes on top: at the foot of a long list it
 			// was easy to miss, and any other key declines it.
@@ -737,6 +741,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"/", "help.filter"},
 	{"r", "help.rename"},
 	{"R", "help.restart"},
+	{"L", "help.look"},
 	{"a", "help.account"},
 	{"y", "help.answer"},
 	{"t", "help.templates"},

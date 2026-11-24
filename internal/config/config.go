@@ -361,7 +361,9 @@ type Prefs struct {
 	Names map[string]string `json:"names,omitempty"`
 	// PanelWidth is the list's width in columns, as last dragged (0 = default).
 	PanelWidth int `json:"panel_width,omitempty"`
-	path       string
+	// Look is how the list is drawn: "" (classic) or "app".
+	Look string `json:"look,omitempty"`
+	path string
 }
 
 // LoadPrefs reads the preferences; a missing or invalid file yields empty ones.
