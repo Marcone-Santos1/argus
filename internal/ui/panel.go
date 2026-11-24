@@ -155,6 +155,7 @@ type Panel struct {
 	rail          bool              // the list folded into a rail (key b)
 	editorPane    string            // the editor shown (in the main window)
 	editorDir     string
+	codeOpen      map[string]bool      // sessions whose code column is open
 	themeFiles    map[string]themeFile // Claude settings file -> its theme, as last seen
 	claudeTheme   string               // the theme picked last in Claude Code
 	themeTick     int
@@ -224,7 +225,7 @@ func New(d Deps) *Panel {
 		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
-		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, themeFiles: map[string]themeFile{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
+		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, codeOpen: map[string]bool{}, themeFiles: map[string]themeFile{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
@@ -416,6 +417,13 @@ func (p *Panel) reconcile() {
 	}
 
 	p.editors, p.editorPane, p.editorDir, p.edW = editors, mainEditor, mainEditorDir, edW
+	if mainEditor != "" { // e.g. after the panel restarted: the shown session owns it
+		for _, a := range agents {
+			if a.Displayed && a.Dir == mainEditorDir {
+				p.codeOpen[a.ID] = true
+			}
+		}
+	}
 	// The right side always shows something: the chosen session or the empty
 	// space (or only the code column, when the session was hidden beside it).
 	if len(inMain) == 0 && mainEditor != "" {

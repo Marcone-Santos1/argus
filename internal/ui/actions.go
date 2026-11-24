@@ -62,9 +62,7 @@ func (p *Panel) showSelected() bool {
 	}
 	a.Displayed = true
 	p.displayPane = a.Pane
-	if p.editorPane != "" && p.editorDir != a.Dir {
-		p.showEditor(a.Dir)
-	}
+	p.codeFor(a)
 	return true
 }
 

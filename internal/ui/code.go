@@ -39,24 +39,43 @@ func (p *Panel) codeDir() string {
 	return ""
 }
 
+// The code column belongs to the session it was opened in: switching to
+// another session hides it, and coming back brings it again.
 func (p *Panel) toggleCode() {
 	if p.editorPane != "" {
-		if _, err := p.d.Tmux.Run("break-pane", "-d", "-s", p.editorPane, "-n", editorWindow(p.editorDir)); err != nil {
-			p.flash(err.Error())
+		for _, a := range p.agents {
+			if a.Displayed {
+				delete(p.codeOpen, a.ID)
+			}
 		}
+		p.hideEditor()
 		p.reconcile()
 		return
+	}
+	if a := p.current(); a != nil && !a.Displayed {
+		p.swapC = nil
+		p.showSelected()
 	}
 	dir := p.codeDir()
 	if dir == "" {
 		return
 	}
+	if a := p.current(); a != nil {
+		p.codeOpen[a.ID] = true
+	}
+	if pane := p.joinEditor(dir); pane != "" {
+		_, _ = p.d.Tmux.Run("select-pane", "-t", pane)
+	}
+}
+
+// joinEditor puts the folder's editor in the code column, between the list
+// and the session (half of the right side).
+func (p *Panel) joinEditor(dir string) string {
 	pane, err := p.editorFor(dir)
 	if err != nil {
 		p.flash(err.Error())
-		return
+		return ""
 	}
-	// Between the list and the session, half of the right side.
 	args := []string{"join-pane", "-h", "-b", "-d", "-l", "50%", "-s", pane, "-t", p.displayPane}
 	if p.displayPane == "" {
 		args = []string{"join-pane", "-h", "-d", "-s", pane, "-t", p.d.Self}
@@ -66,7 +85,33 @@ func (p *Panel) toggleCode() {
 	}
 	p.reconcile()
 	p.applyWidth()
-	_, _ = p.d.Tmux.Run("select-pane", "-t", pane)
+	return pane
+}
+
+// hideEditor takes the code column off the screen; the editor keeps running.
+func (p *Panel) hideEditor() {
+	if p.editorPane == "" {
+		return
+	}
+	if _, err := p.d.Tmux.Run("break-pane", "-d", "-s", p.editorPane, "-n", editorWindow(p.editorDir)); err != nil {
+		p.flash(err.Error())
+	}
+	p.editorPane, p.editorDir = "", ""
+}
+
+// codeFor shows or hides the code column for the session now on screen.
+func (p *Panel) codeFor(a *agent) {
+	switch {
+	case !p.codeOpen[a.ID]:
+		if p.editorPane != "" {
+			p.hideEditor()
+			p.applyWidth()
+		}
+	case p.editorPane == "":
+		p.joinEditor(a.Dir)
+	case p.editorDir != a.Dir:
+		p.showEditor(a.Dir)
+	}
 }
 
 // showEditor puts the folder's editor in the code column, in place of the

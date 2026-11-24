@@ -60,10 +60,15 @@ command = "sleep 300"
 	if got, want := layout(), "panel: editor:"+d1+" agent:"+d1; got != want {
 		t.Fatalf("code opened:\n got %s\nwant %s (msg %q)", got, want, pn.msg)
 	}
+	// The code column stays with the session it was opened in.
 	pn.selectKey("a:" + pn.agents[1].ID)
 	pn.showSelected()
+	if got, want := layout(), "panel: agent:"+d2; got != want {
+		t.Fatalf("another session: no code column:\n got %s\nwant %s", got, want)
+	}
+	pn.toggleCode()
 	if got, want := layout(), "panel: editor:"+d2+" agent:"+d2; got != want {
-		t.Fatalf("other folder brings its editor:\n got %s\nwant %s", got, want)
+		t.Fatalf("its own code column:\n got %s\nwant %s", got, want)
 	}
 	pn.hideSession()
 	if got, want := layout(), "panel: editor:"+d2; got != want {
@@ -72,12 +77,20 @@ command = "sleep 300"
 	pn.selectKey("a:" + pn.agents[0].ID)
 	pn.showSelected()
 	if got, want := layout(), "panel: editor:"+d1+" agent:"+d1; got != want {
-		t.Fatalf("session back beside the code:\n got %s\nwant %s", got, want)
+		t.Fatalf("back to the first session, its code column again:\n got %s\nwant %s", got, want)
 	}
 	pn.toggleCode()
 	if got, want := layout(), "panel: agent:"+d1; got != want {
 		t.Fatalf("code closed:\n got %s\nwant %s", got, want)
 	}
+	pn.selectKey("a:" + pn.agents[1].ID)
+	pn.showSelected()
+	if got, want := layout(), "panel: editor:"+d2+" agent:"+d2; got != want {
+		t.Fatalf("the second keeps its column:\n got %s\nwant %s", got, want)
+	}
+	pn.toggleCode()
+	pn.selectKey("a:" + pn.agents[0].ID)
+	pn.showSelected()
 	if len(pn.editors) != 2 {
 		t.Fatalf("editors keep running hidden: %v", pn.editors)
 	}
