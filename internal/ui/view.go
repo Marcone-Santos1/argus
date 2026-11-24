@@ -745,6 +745,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"/", "help.filter"},
 	{"r", "help.rename"},
 	{"R", "help.restart"},
+	{"e", "help.code"},
 	{"L", "help.look"},
 	{"a", "help.account"},
 	{"y", "help.answer"},

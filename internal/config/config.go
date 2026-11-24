@@ -88,11 +88,13 @@ type Config struct {
 	MaxSessions int      `toml:"max_sessions"`
 	// HibernateAfter closes a finished session's process after this long
 	// without use ("2h"); it resumes on Enter. "0" turns it off.
-	HibernateAfter string     `toml:"hibernate_after"`
-	Notify         []string   `toml:"notify"`
-	Profiles       []Profile  `toml:"profile"`
-	Rules          []Rule     `toml:"rule"`
-	Templates      []Template `toml:"template"`
+	HibernateAfter string `toml:"hibernate_after"`
+	// Editor is the command the code column (key e) runs in a folder.
+	Editor    string     `toml:"editor"`
+	Notify    []string   `toml:"notify"`
+	Profiles  []Profile  `toml:"profile"`
+	Rules     []Rule     `toml:"rule"`
+	Templates []Template `toml:"template"`
 }
 
 // Template is a session ready to start with one key (t): a folder, a
@@ -119,6 +121,9 @@ max_sessions = 8
 # closed (freeing its memory) and it stays in the list; Enter resumes the
 # conversation. "0" turns it off.
 hibernate_after = "2h"
+
+# The editor of the code column (key e), run in the session's folder.
+editor = "fresh ."
 
 # macOS/desktop notifications when a session changes to these states
 # (waiting = waiting for you, done = finished). An empty list turns them off.
@@ -270,6 +275,9 @@ func Parse(data, home string) (*Config, error) {
 	}
 	if !md.IsDefined("hibernate_after") {
 		c.HibernateAfter = "2h"
+	}
+	if c.Editor == "" {
+		c.Editor = "fresh ."
 	}
 	if !md.IsDefined("notify") {
 		c.Notify = []string{"waiting", "done"}

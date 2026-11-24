@@ -21,6 +21,7 @@ const (
 	RolePanel       = "panel"
 	RolePlaceholder = "placeholder"
 	RoleAgent       = "agent"
+	RoleEditor      = "editor" // the code column's editor, one per folder
 )
 
 // Client runs commands against one tmux server (tmux -L Socket).

@@ -48,7 +48,11 @@ func (p *Panel) showSelected() bool {
 		return true
 	}
 	p.swapStart = time.Now()
-	if _, err := p.d.Tmux.Run("swap-pane", "-d", "-s", a.Pane, "-t", p.displayPane); err != nil {
+	args := []string{"swap-pane", "-d", "-s", a.Pane, "-t", p.displayPane}
+	if p.displayPane == "" && p.editorPane != "" { // only the code column is shown: beside it
+		args = []string{"join-pane", "-h", "-d", "-s", a.Pane, "-t", p.editorPane}
+	}
+	if _, err := p.d.Tmux.Run(args...); err != nil {
 		p.flash(err.Error())
 		p.reconcile()
 		return false
@@ -58,6 +62,9 @@ func (p *Panel) showSelected() bool {
 	}
 	a.Displayed = true
 	p.displayPane = a.Pane
+	if p.editorPane != "" && p.editorDir != a.Dir {
+		p.showEditor(a.Dir)
+	}
 	return true
 }
 

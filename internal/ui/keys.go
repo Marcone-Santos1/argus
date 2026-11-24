@@ -259,6 +259,8 @@ func (p *Panel) keyList(k string) {
 		p.restartSelected()
 	case "L":
 		p.toggleLook()
+	case "e":
+		p.toggleCode()
 	case "esc":
 		if p.listFilter != "" {
 			p.listFilter = ""

@@ -167,7 +167,11 @@ func (p *Panel) tabsLine(shown string) string {
 		}
 	}
 	var b strings.Builder
-	b.WriteString("#[default]" + strings.Repeat(" ", p.w+1)) // under the list: empty
+	pad := p.w + 1 // above the list (and the code column): empty
+	if p.editorPane != "" {
+		pad += p.edW + 1
+	}
+	b.WriteString("#[default]" + strings.Repeat(" ", pad))
 	if lo > 0 {
 		b.WriteString("#[default,fg=#4c4c55]‹")
 	}
