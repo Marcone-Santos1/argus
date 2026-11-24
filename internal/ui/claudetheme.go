@@ -11,6 +11,7 @@ import (
 	"github.com/tidwall/sjson"
 
 	"github.com/Marcone-Santos1/argus/internal/history"
+	"github.com/Marcone-Santos1/argus/internal/i18n"
 )
 
 // ---------- the look follows the theme picked in Claude Code ----------
@@ -175,4 +176,29 @@ func (p *Panel) setFreshTheme(light bool) {
 	}
 	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	_ = os.WriteFile(path, out, 0o644)
+}
+
+// toggleTheme switches between Argus dark and Argus light (key T): it is
+// written to every Claude account, so Claude and the look change together.
+func (p *Panel) toggleTheme() {
+	want := "custom:argus-light"
+	if p.themeIsLight(p.claudeTheme) {
+		want = "custom:argus-dark"
+	}
+	n := 0
+	for _, f := range p.claudeSettings() {
+		if setTheme(f, want) {
+			n++
+			if fi, err := os.Stat(f); err == nil {
+				p.themeFiles[f] = themeFile{fi.ModTime(), want}
+			}
+		}
+	}
+	if n == 0 {
+		p.flash(i18n.T("msg.noTheme"))
+		return
+	}
+	p.claudeTheme = want
+	p.followTheme()
+	p.flash(i18n.T("msg.theme." + map[bool]string{true: "light", false: "dark"}[want == "custom:argus-light"]))
 }

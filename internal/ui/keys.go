@@ -272,6 +272,8 @@ func (p *Panel) keyList(k string) {
 		p.restartSelected()
 	case "L":
 		p.toggleLook()
+	case "T":
+		p.toggleTheme()
 	case "e":
 		p.toggleCode()
 	case "b":

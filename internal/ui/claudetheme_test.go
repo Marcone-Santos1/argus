@@ -61,6 +61,21 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	if gjson.GetBytes(fresh, "theme").String() != "argus-light" {
 		t.Fatalf("fresh: %s", fresh)
 	}
+	// T goes back to Argus dark, in every account.
+	p.handleKey("T")
+	for _, f := range []string{pes, emp} {
+		data, _ := os.ReadFile(f)
+		if gjson.GetBytes(data, "theme").String() != "custom:argus-dark" {
+			t.Fatalf("T: %s", data)
+		}
+	}
+	if lightLook {
+		t.Fatal("dark after T")
+	}
+	p.handleKey("T")
+	if !lightLook {
+		t.Fatal("light after T again")
+	}
 	// The classic look stays dark whatever the theme.
 	p.handleKey("L")
 	if lightLook {

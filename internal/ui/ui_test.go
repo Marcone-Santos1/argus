@@ -245,7 +245,7 @@ func TestShellQuote(t *testing.T) {
 
 func TestHelpScreen(t *testing.T) {
 	p := testPanel(t)
-	p.w, p.h = 60, 30
+	p.w, p.h = 60, 40 // every key fits (the help grew past 30 lines)
 	p.handleKey("?")
 	if p.mode != modeHelp {
 		t.Fatal("? opens the help")
