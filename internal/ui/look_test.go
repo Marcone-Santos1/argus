@@ -43,3 +43,34 @@ func TestAppLook(t *testing.T) {
 		t.Fatalf("classic: look=%q first=%s", p.prefs.Look, p.itemKey(0))
 	}
 }
+
+func TestTmuxSpans(t *testing.T) {
+	got := tmuxSpans([]span{sp("5h ", cFaint), sp("12% #1", "\x1b[1m"+aAmber)})
+	want := "#[default,fg=#4a4f59]5h #[default,fg=#f5b14c,bold]12% ##1"
+	if got != want {
+		t.Fatalf("got  %q\nwant %q", got, want)
+	}
+	if s := stripTmux(got); s != "5h 12% #1" {
+		t.Fatalf("strip: %q", s)
+	}
+}
+
+func TestTabTitle(t *testing.T) {
+	p := testPanel(t)
+	p.prefs.Look = lookApp
+	p.dispW = 60
+	p.agents = []agent{
+		{ID: "a1", Dir: "/p/api", Name: "Api work", Status: status.Done, Created: 1},
+		{ID: "b1", Dir: "/p/site", Name: "Site fix", Status: status.Working, Created: 2},
+	}
+	p.rebuildItems("")
+	tabs := stripTmux(p.tabTitle(p.agents[1]))
+	if !strings.Contains(tabs, "Api work") || !strings.Contains(tabs, "Site fix") {
+		t.Fatalf("tabs: %q", tabs)
+	}
+	p.dispW = 20 // only the shown tab fits
+	tabs = stripTmux(p.tabTitle(p.agents[1]))
+	if strings.Contains(tabs, "Api work") || !strings.Contains(tabs, "Site fix") || !strings.HasPrefix(tabs, "‹") {
+		t.Fatalf("narrow tabs: %q", tabs)
+	}
+}

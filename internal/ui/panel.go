@@ -150,6 +150,10 @@ type Panel struct {
 	cpuHist []float64 // last CPU readings, for the footer sparkline
 	memHist []float64 // last memory readings (% in use)
 
+	dispW         int    // width of the session shown on the right
+	statusText    string // what the status line shows (app look)
+	statusLeft    string
+	statusAt      time.Time
 	expanded      map[string]bool   // folders of past conversations opened in the list
 	titleOf       map[string]string // conversation id -> its title (from the history)
 	folderW       int               // width of the folder-name column in the list
@@ -228,7 +232,7 @@ func (p *Panel) Run() error {
 	}
 	_ = p.d.Tmux.SetPaneOptions(p.d.Self, "@argus_role", tmux.RolePanel)
 	if p.appLook() {
-		p.applyLookBg()
+		p.applyLook()
 	}
 
 	old, err := term.MakeRaw(int(os.Stdin.Fd()))
@@ -402,6 +406,7 @@ func (p *Panel) reconcile() {
 		}
 	} else {
 		p.displayPane = inMain[0].ID
+		p.dispW = inMain[0].Width
 		if d := inMain[0]; !d.Zoomed {
 			defer p.syncHiddenSize(d.Width, d.Height)
 		}
@@ -640,6 +645,14 @@ func (p *Panel) syncTitle(i int) {
 		icon, color = "◜", cWorking
 	}
 	esc := func(s string) string { return strings.ReplaceAll(s, "#", "##") }
+	if p.appLook() && a.Displayed {
+		if t := p.tabTitle(a); p.titles[a.Pane] != t {
+			if err := p.d.Tmux.SetPaneOptions(a.Pane, "@argus_title", t); err == nil {
+				p.titles[a.Pane] = t
+			}
+		}
+		return
+	}
 	title := fmt.Sprintf(" #[fg=%s]%s#[default] #[bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg=#6c717c] · %s · #[fg=%s]%s ",
 		tmuxColor(color), icon, esc(p.sessionText(a)),
 		p.accountHex(a.Profile), esc(p.tag(a.Profile)),

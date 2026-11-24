@@ -7,6 +7,7 @@ import (
 
 	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/status"
+	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
 
 // ---------- the "app" look (key L): neutral colors, cards, sections ----------
@@ -52,22 +53,182 @@ func (p *Panel) toggleLook() {
 		p.prefs.Look = lookApp
 	}
 	_ = p.prefs.Save()
-	p.applyLookBg()
+	p.applyLook()
 	p.prevLines = nil // full redraw: the background changed
 	p.rebuildItems(p.selKey())
 	p.flash(i18n.T("msg.look." + map[bool]string{true: "app", false: "classic"}[p.appLook()]))
 }
 
-// applyLookBg paints the panel's pane with the look's background.
-func (p *Panel) applyLookBg() {
+// applyLook sets what tmux draws for the look: the panel's background, the
+// borders and, in the app look, the status line at the bottom.
+func (p *Panel) applyLook() {
 	if p.d.Self == "" {
 		return
 	}
+	s := tmux.Session
 	if p.appLook() {
-		_ = p.d.Tmux.SetPaneOptions(p.d.Self, "window-style", "bg="+aBg, "window-active-style", "bg="+aBg)
+		_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "window-style", "bg="+aBg,
+			";", "set", "-p", "-t", p.d.Self, "window-active-style", "bg="+aBg,
+			";", "set", "-g", "pane-border-style", "fg=#26262b",
+			";", "set", "-g", "pane-active-border-style", "fg=#33333a",
+			";", "set", "-t", s, "status-style", "bg="+aBg+",fg=#7d7d87",
+			";", "set", "-t", s, "status-format[0]", "#{@argus_status}",
+			";", "set", "-t", s, "status", "on")
+		p.statusText = ""
+	} else {
+		_, _ = p.d.Tmux.Run("set", "-pu", "-t", p.d.Self, "window-style",
+			";", "set", "-pu", "-t", p.d.Self, "window-active-style",
+			";", "set", "-g", "pane-border-style", "fg=#3b4048",
+			";", "set", "-g", "pane-active-border-style", "fg=#4d6491",
+			";", "set", "-u", "-t", s, "status-style",
+			";", "set", "-u", "-t", s, "status-format",
+			";", "set", "-u", "-t", s, "status")
+	}
+	for i := range p.agents {
+		p.syncTitle(i)
+	}
+}
+
+// tmuxSpans writes spans in tmux's style syntax (#[fg=...]), for the status
+// line and the tabs.
+func tmuxSpans(spans []span) string {
+	var b strings.Builder
+	for _, s := range spans {
+		b.WriteString("#[default")
+		if fg := escHex(s.style, "38;2;"); fg != "" {
+			b.WriteString(",fg=" + fg)
+		}
+		if bg := escHex(s.style, "48;2;"); bg != "" {
+			b.WriteString(",bg=" + bg)
+		}
+		if strings.Contains(s.style, "\x1b[1") {
+			b.WriteString(",bold")
+		}
+		b.WriteString("]" + strings.ReplaceAll(s.text, "#", "##"))
+	}
+	return b.String()
+}
+
+// escHex finds a 24-bit color ("38;2;r;g;b") in an escape and returns it as #rrggbb.
+func escHex(esc, prefix string) string {
+	i := strings.Index(esc, prefix)
+	if i < 0 {
+		return ""
+	}
+	var r, g, b int
+	if n, _ := fmt.Sscanf(esc[i+len(prefix):], "%d;%d;%dm", &r, &g, &b); n != 3 {
+		return ""
+	}
+	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
+}
+
+// syncStatus writes tmux's status line: each account's limits on the left,
+// the machine on the right. A change in the limits shows at once; the
+// machine's numbers, at most every 10 s (each write is a tmux command).
+func (p *Panel) syncStatus(now time.Time) {
+	var acc []string
+	for _, groups := range p.usageGroups(now) {
+		var parts []string
+		for _, g := range groups {
+			parts = append(parts, tmuxSpans(g))
+		}
+		acc = append(acc, "#[fg=#d97757]✳ "+strings.Join(parts, "  "))
+	}
+	left := strings.Join(acc, "     ")
+	var mach []string
+	for _, g := range p.machineGroups() {
+		mach = append(mach, tmuxSpans(g))
+	}
+	right := strings.Join(mach, "   ")
+	text := " " + left + "#[align=right]" + right + " "
+	if text == p.statusText || (left == p.statusLeft && now.Sub(p.statusAt) < 10*time.Second) {
 		return
 	}
-	_, _ = p.d.Tmux.Run("set", "-pu", "-t", p.d.Self, "window-style", ";", "set", "-pu", "-t", p.d.Self, "window-active-style")
+	if _, err := p.d.Tmux.Run("set", "-t", tmux.Session, "@argus_status", text); err == nil {
+		p.statusText, p.statusLeft, p.statusAt = text, left, now
+	}
+}
+
+// tabTitle is, in the app look, the border above the session on the right:
+// one tab per open session, the shown one highlighted.
+func (p *Panel) tabTitle(shown agent) string {
+	type tab struct {
+		text string
+		on   bool
+	}
+	var tabs []tab
+	at := 0
+	now := time.Now()
+	for _, it := range p.items {
+		if it.agent < 0 {
+			continue
+		}
+		a := p.agents[it.agent]
+		if !a.Asleep.IsZero() {
+			continue
+		}
+		on := a.ID == shown.ID
+		name := fit(p.sessionText(a), 18)
+		name = strings.TrimRight(name, " ")
+		dot := p.appDot(a, now)
+		style := "#[default,fg=#7d7d87]"
+		if on {
+			style = "#[default,bg=#0f0f11,fg=#ececf0,bold]"
+			at = len(tabs)
+		}
+		t := style + " " + tmuxSpans([]span{dot}) + style + " " + tmuxSpans([]span{p.agentGlyph(a.Profile)}) + style + " " + strings.ReplaceAll(name, "#", "##") + " "
+		tabs = append(tabs, tab{t, on})
+	}
+	// Keep the shown tab and its neighbours when they do not all fit.
+	room := max(p.dispW-4, 20)
+	tw := func(t tab) int { return width(stripTmux(t.text)) + 1 }
+	total := 0
+	for _, t := range tabs {
+		total += tw(t)
+	}
+	lo, hi := 0, len(tabs)
+	for total > room && hi-lo > 1 {
+		if at-lo > hi-1-at {
+			total -= tw(tabs[lo])
+			lo++
+		} else {
+			total -= tw(tabs[hi-1])
+			hi--
+		}
+	}
+	var b strings.Builder
+	if lo > 0 {
+		b.WriteString("#[default,fg=#4c4c55]‹")
+	}
+	for _, t := range tabs[lo:hi] {
+		b.WriteString(t.text + "#[default,fg=#26262b]│")
+	}
+	if hi < len(tabs) {
+		b.WriteString("#[default,fg=#4c4c55]›")
+	}
+	return b.String() + "#[default]"
+}
+
+// stripTmux removes tmux style sequences (#[...]) and unescapes ##.
+func stripTmux(s string) string {
+	var b strings.Builder
+	for i := 0; i < len(s); i++ {
+		if s[i] == '#' && i+1 < len(s) {
+			if s[i+1] == '[' {
+				if j := strings.IndexByte(s[i:], ']'); j >= 0 {
+					i += j
+					continue
+				}
+			}
+			if s[i+1] == '#' {
+				b.WriteByte('#')
+				i++
+				continue
+			}
+		}
+		b.WriteByte(s[i])
+	}
+	return b.String()
 }
 
 // appItems reorders the sessions for the app look: those waiting for you
@@ -274,7 +435,13 @@ func (p *Panel) viewListApp() []string {
 	}
 	mark(-1)
 	p.syncPanelTitle()
-	return p.layoutClick(body, targets, p.appFooter(), focus)
+	for i := range p.agents {
+		if p.agents[i].Displayed {
+			p.syncTitle(i)
+		}
+	}
+	p.syncStatus(now)
+	return p.layoutClick(body, targets, p.footer(), focus)
 }
 
 // appFolder is a collapsed group's row (hibernated or past conversations).
@@ -376,19 +543,4 @@ func (p *Panel) needCard(a agent, sel bool, now time.Time, w int) []string {
 	}
 	out = append(out, card(w, bg, []span{bar, sp("     ", ""), sp(q, aSoft)}, []span{sp(i18n.T("hint.answer"), aAmber)}))
 	return out
-}
-
-// appFooter: messages and warnings, then the accounts' limits and the
-// machine, and the keys for what is selected.
-func (p *Panel) appFooter() []string {
-	foot := p.footer()
-	// The classic footer draws a rule above the stats; the app look uses
-	// a blank line instead.
-	for i, l := range foot {
-		if strings.Contains(l, "────") {
-			foot[i] = ""
-			break
-		}
-	}
-	return foot
 }

@@ -271,8 +271,12 @@ func (p *Panel) footer() []string {
 	if r := p.reading; r.DiskFree > 0 && r.DiskFree < diskLow {
 		foot = append(foot, line(w, "", sp(i18n.T("list.diskLow", size(r.DiskFree)), red)))
 	}
-	foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
-	foot = append(foot, p.statsLines(w)...)
+	if p.appLook() { // the limits and the machine are on tmux's status line
+		foot = append(foot, "")
+	} else {
+		foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
+		foot = append(foot, p.statsLines(w)...)
+	}
 	for _, h := range wrapHints(tr(p.hintKeys()...), w) {
 		foot = append(foot, line(w, "", sp(stripANSI(h), cFaint)))
 	}
@@ -772,11 +776,17 @@ func (p *Panel) viewHelp() []string {
 // is narrow. Colors only show up when something is high; the CPU sparkline
 // only when there was load in the last 16 s.
 func (p *Panel) statsLines(w int) []string {
-	r := p.reading
 	var out []string
 	for _, acc := range p.usageGroups(time.Now()) {
 		out = append(out, wrapGroups(acc, w)...)
 	}
+	return append(out, wrapGroups(p.machineGroups(), w)...)
+}
+
+// machineGroups is the machine's CPU, memory, free disk and processes per
+// minute.
+func (p *Panel) machineGroups() [][]span {
+	r := p.reading
 	calm := func(color string) string {
 		if color == cDone {
 			return ""
@@ -807,7 +817,7 @@ func (p *Panel) statsLines(w int) []string {
 	if r.PerMinute >= 0 {
 		groups = append(groups, []span{sp(i18n.T("list.procs")+" ", cFaint), sp(fmt.Sprintf("%.0f", r.PerMinute), ""), sp("/min", cFaint)})
 	}
-	return append(out, wrapGroups(groups, w)...)
+	return groups
 }
 
 // wrapGroups lays groups of spans on lines of w columns, three spaces apart,
