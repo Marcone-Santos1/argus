@@ -52,7 +52,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | Tecla | Ação |
 | --- | --- |
 | `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
-| `Shift+↑` `Shift+↓` (ou `K` `J`) | sobe ou desce a sessão na lista; na ponta da pasta, a pasta inteira se move |
+| `[` `]` (ou `Shift+↑` `Shift+↓`, `K` `J`) | sobe ou desce a sessão na lista; na ponta da pasta, a pasta inteira se move |
 | `Enter` | entra na sessão, abre a pasta, ou retoma a conversa antiga |
 | `→ ←` | abre / fecha uma pasta de conversas antigas |
 | `v` | visão geral: a tela de todas as sessões lado a lado; setas escolhem, Enter abre |

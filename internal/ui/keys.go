@@ -208,9 +208,9 @@ func (p *Panel) keyList(k string) {
 				p.scheduleSwap()
 			}
 		}
-	case "shift-up", "K":
+	case "[", "shift-up", "K":
 		p.moveSession(-1)
-	case "shift-down", "J":
+	case "]", "shift-down", "J":
 		p.moveSession(1)
 	case "enter":
 		if p.sel >= 0 && p.sel < len(p.items) && p.items[p.sel].agent < 0 {

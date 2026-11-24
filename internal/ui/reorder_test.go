@@ -58,6 +58,15 @@ func TestMoveSession(t *testing.T) {
 	if got := order(); got != "a2 a1 a3 c1 b1 d1" {
 		t.Fatalf("new sessions: %s", got)
 	}
+	p.selectKey("a:d1")
+	p.handleKey("[") // the key that needs no terminal setting
+	if got := order(); got != "a2 a1 a3 c1 d1 b1" {
+		t.Fatalf("[: %s", got)
+	}
+	p.handleKey("]")
+	if got := order(); got != "a2 a1 a3 c1 b1 d1" {
+		t.Fatalf("]: %s", got)
+	}
 }
 
 func TestRememberedName(t *testing.T) {

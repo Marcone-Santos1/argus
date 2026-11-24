@@ -726,7 +726,7 @@ func tr(keys ...string) []string {
 // helpKeys lists every key with its description, in screen order.
 var helpKeys = []struct{ key, msg string }{
 	{"↑ ↓  j k", "help.move"},
-	{"⇧↑↓ K J", "help.reorder"},
+	{"[ ]  ⇧↑↓", "help.reorder"},
 	{"Enter", "help.enter"},
 	{"Ctrl+\\", "help.toggle"},
 	{"Tab", "help.tab"},
