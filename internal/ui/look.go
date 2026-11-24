@@ -27,7 +27,7 @@ const (
 // Colors of the app look.
 const (
 	aBg     = "#141417" // the panel's background
-	aCard   = "\x1b[48;2;34;34;38m"
+	aCard   = "\x1b[48;2;38;38;43m"
 	aNeed   = "\x1b[48;2;44;34;22m"
 	aSoft   = "\x1b[38;2;180;180;188m"
 	aMuted  = "\x1b[38;2;125;125;135m"
@@ -309,6 +309,12 @@ func card(w int, bg string, left, right []span) string {
 	return " " + lineLR(w-2, bg, append([]span{sp(" ", "")}, left...), append(right, sp(" ", ""))) + " "
 }
 
+// selCard is a line of the selected session's card: an orange bar on its
+// left edge.
+func selCard(w int, left, right []span) string {
+	return " " + lineLR(w-2, aCard, append([]span{sp("▌", aClaude)}, left...), append(right, sp(" ", ""))) + " "
+}
+
 // appSection is a section's small heading with, on the right, a count pill
 // or a key.
 func appSection(w int, label string, right []span) string {
@@ -470,10 +476,10 @@ func (p *Panel) appRows(a agent, sel, asleep bool, now time.Time, w int) []strin
 		}
 		return []string{lineLR(w, "", []span{sp("   ", ""), p.appDot(a, now), sp(" ", ""), p.agentGlyph(a.Profile), sp(" "+title, style)}, append(right, sp(" ", "")))}
 	}
-	out := []string{card(w, aCard, []span{sp(" ", ""), p.appDot(a, now), sp(" ", ""), p.agentGlyph(a.Profile), sp(" "+title, "\x1b[1m")}, right)}
+	out := []string{selCard(w, []span{sp(" ", ""), p.appDot(a, now), sp(" ", ""), p.agentGlyph(a.Profile), sp(" "+title, "\x1b[1m")}, right)}
 	indent := sp("      ", "")
 	if r := p.reply[a.ID]; r != "" && (asleep || replyShown(a)) {
-		out = append(out, card(w, aCard, []span{indent, sp(r, "\x1b[3m"+aSoft)}, nil))
+		out = append(out, selCard(w, []span{indent, sp(r, "\x1b[3m"+aSoft)}, nil))
 	}
 	var d []span
 	add := func(s ...span) {
@@ -508,7 +514,7 @@ func (p *Panel) appRows(a agent, sel, asleep bool, now time.Time, w int) []strin
 		add(sp("⑂ worktree", aMuted))
 	}
 	if len(d) > 0 {
-		out = append(out, card(w, aCard, append([]span{indent}, d...), p.cpuSpans(a.ID)))
+		out = append(out, selCard(w, append([]span{indent}, d...), p.cpuSpans(a.ID)))
 	}
 	return out
 }
