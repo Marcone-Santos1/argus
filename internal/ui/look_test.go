@@ -34,13 +34,27 @@ func TestAppLook(t *testing.T) {
 	// Enter on a project's heading collapses it, and again opens it.
 	p.selectKey("g:/p/api")
 	p.handleKey("enter")
-	if p.selectKey("a:a1") || !p.prefs.Collapsed["/p/api"] {
+	shown := func(k string) bool {
+		for i := range p.items {
+			if p.itemKey(i) == k {
+				return true
+			}
+		}
+		return false
+	}
+	if shown("a:a1") || !p.prefs.Collapsed["/p/api"] {
 		t.Fatalf("collapsed: %v", p.items)
 	}
 	p.selectKey("g:/p/api")
 	p.handleKey("enter")
-	if !p.selectKey("a:a1") {
+	if !shown("a:a1") {
 		t.Fatalf("opened again: %v", p.items)
+	}
+	// Selecting a session of a collapsed project (a tab, the overview) opens it.
+	p.selectKey("g:/p/api")
+	p.handleKey("enter")
+	if !p.selectKey("a:a1") || p.prefs.Collapsed["/p/api"] {
+		t.Fatalf("select opens the project: %v", p.prefs.Collapsed)
 	}
 	// Opening the hibernated group lists its sessions.
 	p.selectKey("f:" + asleepKey)
@@ -115,5 +129,17 @@ func TestRail(t *testing.T) {
 	p.handleKey("n") // the folder picker needs the full list
 	if p.rail {
 		t.Fatal("a picker opens the list again")
+	}
+}
+
+func TestAppLookIsDefault(t *testing.T) {
+	p := testPanel(t)
+	p.prefs.Look = ""
+	if !p.appLook() {
+		t.Fatal("no choice saved: the app look")
+	}
+	p.handleKey("L")
+	if p.appLook() || p.prefs.Look != lookClassic {
+		t.Fatalf("L: %q", p.prefs.Look)
 	}
 }

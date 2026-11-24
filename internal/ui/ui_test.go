@@ -97,7 +97,9 @@ command = "opencode"
 	if err != nil {
 		t.Fatal(err)
 	}
-	return New(Deps{Paths: paths.For(home, "x"), Config: cfg, Tmux: tmux.New("argus-ui-test-missing")})
+	p := New(Deps{Paths: paths.For(home, "x"), Config: cfg, Tmux: tmux.New("argus-ui-test-missing")})
+	p.prefs.Look = lookClassic // most tests check the classic list; the app look's set it
+	return p
 }
 
 func TestRebuildItemsGroupsByFolder(t *testing.T) {

@@ -15,7 +15,10 @@ import (
 // An alternative drawing of the list, kept beside the classic one while it is
 // tried out. Only the list changes; keys, items and actions are the same.
 
-const lookApp = "app"
+const (
+	lookApp     = "app"
+	lookClassic = "classic"
+)
 
 // Pseudo folders of the app look: the hibernated sessions and the past
 // conversations, each collapsed into one row until opened.
@@ -27,6 +30,7 @@ const (
 // Colors of the app look.
 const (
 	aBg     = "#141417" // the panel's background
+	aMain   = "#0f0f11" // the sessions' and the editor's background
 	aCard   = "\x1b[48;2;38;38;43m"
 	aNeed   = "\x1b[48;2;44;34;22m"
 	aSoft   = "\x1b[38;2;180;180;188m"
@@ -43,12 +47,13 @@ const (
 	pillN   = "\x1b[48;2;43;43;48m\x1b[38;2;180;180;188m"
 )
 
-func (p *Panel) appLook() bool { return p.prefs.Look == lookApp }
+// appLook: the app look is the default; L switches to the classic one.
+func (p *Panel) appLook() bool { return p.prefs.Look != lookClassic }
 
 // toggleLook switches between the classic and the app look and remembers it.
 func (p *Panel) toggleLook() {
 	if p.appLook() {
-		p.prefs.Look = ""
+		p.prefs.Look = lookClassic
 	} else {
 		p.prefs.Look = lookApp
 	}
@@ -69,8 +74,10 @@ func (p *Panel) applyLook() {
 	if p.appLook() {
 		_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "window-style", "bg="+aBg,
 			";", "set", "-p", "-t", p.d.Self, "window-active-style", "bg="+aBg,
-			";", "set", "-g", "pane-border-style", "fg=#26262b",
-			";", "set", "-g", "pane-active-border-style", "fg=#33333a",
+			";", "set", "-g", "window-style", "bg="+aMain,
+			";", "set", "-g", "window-active-style", "bg="+aMain,
+			";", "set", "-g", "pane-border-style", "fg=#26262b,bg="+aMain,
+			";", "set", "-g", "pane-active-border-style", "fg=#33333a,bg="+aMain,
 			";", "set", "-t", s, "status-style", "bg="+aBg+",fg=#7d7d87",
 			";", "set", "-t", s, "status-format[0]", "#{@argus_tabs}",
 			";", "set", "-t", s, "status-position", "top",
@@ -79,6 +86,8 @@ func (p *Panel) applyLook() {
 	} else {
 		_, _ = p.d.Tmux.Run("set", "-pu", "-t", p.d.Self, "window-style",
 			";", "set", "-pu", "-t", p.d.Self, "window-active-style",
+			";", "set", "-gu", "window-style",
+			";", "set", "-gu", "window-active-style",
 			";", "set", "-g", "pane-border-style", "fg=#3b4048",
 			";", "set", "-g", "pane-active-border-style", "fg=#4d6491",
 			";", "set", "-u", "-t", s, "status-style",

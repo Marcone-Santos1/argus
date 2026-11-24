@@ -53,6 +53,29 @@ func (p *Panel) selectKey(k string) bool {
 			return true
 		}
 	}
+	// A session hidden in a collapsed group (app look): open the group.
+	if id, ok := strings.CutPrefix(k, "a:"); ok && p.appLook() {
+		for _, a := range p.agents {
+			if a.ID != id {
+				continue
+			}
+			if !a.Asleep.IsZero() && !p.expanded[asleepKey] {
+				p.expanded[asleepKey] = true
+			} else if p.prefs.Collapsed[a.Dir] {
+				delete(p.prefs.Collapsed, a.Dir)
+				_ = p.prefs.Save()
+			} else {
+				return false
+			}
+			p.rebuildItems("")
+			for i := range p.items {
+				if p.itemKey(i) == k {
+					p.sel = i
+					return true
+				}
+			}
+		}
+	}
 	return false
 }
 

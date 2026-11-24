@@ -75,6 +75,9 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `Esc` | esconde a sessão da direita sem encerrar (ou limpa o filtro) |
 | `x` | encerra a sessão (e oferece apagar a worktree) |
 | `z` | tela cheia |
+| `e` | coluna de código: um editor ([Fresh](https://getfresh.dev) por padrão, `editor` no config.toml) na pasta da sessão, entre a lista e a sessão; abre cada arquivo que o agente altera |
+| `b` | recolhe a lista numa faixa fina (e abre de novo) |
+| `L` | alterna entre o visual novo e o clássico |
 | `1`–`9` | vai direto para a sessão |
 | `q` | fecha o painel; as sessões continuam no tmux |
 
