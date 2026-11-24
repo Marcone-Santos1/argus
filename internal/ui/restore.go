@@ -24,6 +24,7 @@ type snapEntry struct {
 	Tool     string `json:"tool"`
 	Session  string `json:"session,omitempty"` // conversation id, to resume it
 	Worktree string `json:"worktree,omitempty"`
+	Code     bool   `json:"code,omitempty"` // its code column was open
 }
 
 func (p *Panel) snapshot() []snapEntry {
@@ -33,7 +34,7 @@ func (p *Panel) snapshot() []snapEntry {
 		if pr, ok := p.profileOf(a.Profile); ok {
 			tool = pr.Label()
 		}
-		out = append(out, snapEntry{Name: a.Name, Profile: a.Profile, Dir: a.Dir, Tool: tool, Session: a.Session, Worktree: a.Worktree})
+		out = append(out, snapEntry{Name: a.Name, Profile: a.Profile, Dir: a.Dir, Tool: tool, Session: a.Session, Worktree: a.Worktree, Code: p.codeOpen[a.ID]})
 	}
 	return out
 }
@@ -125,6 +126,9 @@ func (p *Panel) restore(snap []snapEntry) {
 		if err != nil {
 			p.flash(err.Error())
 			continue
+		}
+		if e.Code {
+			p.codeOpen[id] = true // the column comes back with the session
 		}
 		if first == "" {
 			first = id

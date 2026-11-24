@@ -133,3 +133,13 @@ func TestIsFresh(t *testing.T) {
 		t.Fatalf("names: %q %q", a, b)
 	}
 }
+
+func TestSnapshotKeepsCodeColumn(t *testing.T) {
+	p := testPanel(t)
+	p.agents = []agent{{ID: "a1", Dir: "/p/a", Profile: "personal"}, {ID: "b1", Dir: "/p/b", Profile: "personal"}}
+	p.codeOpen["a1"] = true
+	s := p.snapshot()
+	if !s[0].Code || s[1].Code {
+		t.Fatalf("snapshot: %+v", s)
+	}
+}

@@ -272,3 +272,19 @@ func (p *Panel) transcriptOf(a agent) string {
 	}
 	return path
 }
+
+// saveEditors closes the code column's Fresh editors cleanly when nobody is
+// looking at Argus any more: Fresh saves a session's open files only when
+// its daemon is told to stop, and a shutdown would kill it without that.
+// The next time a column opens, Fresh restores them.
+func (p *Panel) saveEditors() {
+	if out, err := p.d.Tmux.Run("list-clients", "-t", tmux.Session); err != nil || strings.TrimSpace(out) != "" {
+		return // someone is still attached
+	}
+	if !isFresh(p.d.Config.Editor) || len(p.editors) == 0 {
+		return
+	}
+	for dir := range p.editors {
+		_ = exec.Command("fresh", "--cmd", "daemon", "kill", freshName(dir)).Run()
+	}
+}

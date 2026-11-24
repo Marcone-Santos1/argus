@@ -648,6 +648,19 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 			p.reconcile()
 			p.refreshRecent()
 		}
+	case name == "_detach":
+		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+			p.saveEditors()
+		}
+	case name == "_attach":
+		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+			p.reconcile()
+			for i := range p.agents {
+				if p.agents[i].Displayed {
+					p.codeFor(&p.agents[i])
+				}
+			}
+		}
 	case name == "_edit":
 		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 			if data, err := os.ReadFile(ev.Name); err == nil {
