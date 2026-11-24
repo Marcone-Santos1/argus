@@ -111,7 +111,7 @@ func (p *Panel) editorFor(dir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	title := fmt.Sprintf(" #[fg=#d97757]✎ #[fg=#d7dae0,bold]%s#[nobold] ", strings.ReplaceAll(p.d.Paths.Pretty(dir), "#", "##"))
+	title := fmt.Sprintf(" #[fg="+hClaude+"]✎ #[fg="+hText+",bold]%s#[nobold] ", strings.ReplaceAll(p.d.Paths.Pretty(dir), "#", "##"))
 	_ = p.d.Tmux.SetPaneOptions(pane, "@argus_role", tmux.RoleEditor, "@argus_dir", dir, "@argus_title", title)
 	p.editors[dir] = pane
 	return pane, nil

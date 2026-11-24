@@ -27,25 +27,62 @@ const (
 	recentKey = "\x00recent"
 )
 
-// Colors of the app look.
-const (
-	aBg     = "#141417" // the panel's background
-	aMain   = "#0f0f11" // the sessions' and the editor's background
-	aCard   = "\x1b[48;2;38;38;43m"
-	aNeed   = "\x1b[48;2;44;34;22m"
-	aSoft   = "\x1b[38;2;180;180;188m"
-	aMuted  = "\x1b[38;2;125;125;135m"
-	aFaint  = "\x1b[38;2;80;80;90m"
-	aGreen  = "\x1b[38;2;74;222;128m"
-	aAmber  = "\x1b[38;2;245;177;76m"
-	aRed    = "\x1b[38;2;248;113;113m"
-	aClaude = "\x1b[38;2;217;119;87m"
-	aOC     = "\x1b[38;2;154;166;255m"
-	aBlue   = "\x1b[38;2;124;179;255m"
-	pillRun = "\x1b[48;2;29;51;37m\x1b[38;2;74;222;128m"
-	pillNd  = "\x1b[48;2;74;53;23m\x1b[38;2;245;177;76m"
-	pillN   = "\x1b[48;2;43;43;48m\x1b[38;2;180;180;188m"
+// Colors of the app look: a dark and a light set, chosen by the theme
+// picked in Claude Code (see claudetheme.go). In tmux styles, the h* ones.
+var (
+	aBg, aMain                                      string // the panel's and the sessions' backgrounds (#rrggbb)
+	aCard, aNeed                                    string // card backgrounds (escapes)
+	aSoft, aMuted, aFaint                           string // text shades
+	aGreen, aAmber, aRed, aClaude, aOC, aBlue       string
+	pillRun, pillNd, pillN                          string
+	hFg, hText, hMuted, hFaint, hLine, hLine2, hTab string
+	hAmber, hGreen, hClaude                         string
+	lightLook                                       bool
 )
+
+func init() { setPalette(false) }
+
+// paneStyle is a tmux pane style on a background; the light set also sets
+// the text, since the terminal's own is light.
+func paneStyle(bg string) string {
+	if lightLook {
+		return "bg=" + bg + ",fg=" + hText
+	}
+	return "bg=" + bg
+}
+
+func fg(r, g, b int) string  { return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", r, g, b) }
+func bgc(r, g, b int) string { return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b) }
+
+// setPalette switches the app look's colors to the light or the dark set.
+func setPalette(light bool) {
+	lightLook = light
+	if light {
+		aBg, aMain = "#f4f4f6", "#ffffff"
+		aCard, aNeed = bgc(228, 228, 233), bgc(253, 236, 204)
+		aSoft, aMuted, aFaint = fg(60, 60, 70), fg(105, 105, 115), fg(160, 160, 170)
+		aGreen, aAmber, aRed = fg(21, 128, 61), fg(180, 83, 9), fg(220, 38, 38)
+		aClaude, aOC, aBlue = fg(196, 97, 63), fg(79, 91, 213), fg(37, 99, 235)
+		pillRun = bgc(220, 252, 231) + fg(21, 128, 61)
+		pillNd = bgc(253, 230, 190) + fg(180, 83, 9)
+		pillN = bgc(228, 228, 233) + fg(60, 60, 70)
+		hFg, hText, hMuted, hFaint = "#1f2328", "#1f2328", "#6b6b75", "#a0a0aa"
+		hLine, hLine2, hTab = "#dcdce2", "#c8c8d0", "#e4e4e8"
+		hAmber, hGreen, hClaude = "#b45309", "#15803d", "#c4613f"
+		return
+	}
+	aBg, aMain = "#141417", "#0f0f11"
+	aCard, aNeed = bgc(38, 38, 43), bgc(44, 34, 22)
+	aSoft, aMuted, aFaint = fg(180, 180, 188), fg(125, 125, 135), fg(80, 80, 90)
+	aGreen, aAmber, aRed = fg(74, 222, 128), fg(245, 177, 76), fg(248, 113, 113)
+	aClaude, aOC, aBlue = fg(217, 119, 87), fg(154, 166, 255), fg(124, 179, 255)
+	pillRun = bgc(29, 51, 37) + fg(74, 222, 128)
+	pillNd = bgc(74, 53, 23) + fg(245, 177, 76)
+	pillN = bgc(43, 43, 48) + fg(180, 180, 188)
+	hFg, hText, hMuted, hFaint = "#ececf0", "#d7dae0", "#7d7d87", "#4c4c55"
+	hLine, hLine2, hTab = "#26262b", "#33333a", "#26262b"
+	hAmber, hGreen, hClaude = "#f5b14c", "#4ade80", "#d97757"
+}
 
 // appLook: the app look is the default; L switches to the classic one.
 func (p *Panel) appLook() bool { return p.prefs.Look != lookClassic }
@@ -58,6 +95,7 @@ func (p *Panel) toggleLook() {
 		p.prefs.Look = lookApp
 	}
 	_ = p.prefs.Save()
+	setPalette(p.appLook() && p.themeIsLight(p.claudeTheme))
 	p.applyLook()
 	p.prevLines = nil // full redraw: the background changed
 	p.rebuildItems(p.selKey())
@@ -72,13 +110,13 @@ func (p *Panel) applyLook() {
 	}
 	s := tmux.Session
 	if p.appLook() {
-		_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "window-style", "bg="+aBg,
-			";", "set", "-p", "-t", p.d.Self, "window-active-style", "bg="+aBg,
-			";", "set", "-g", "window-style", "bg="+aMain,
-			";", "set", "-g", "window-active-style", "bg="+aMain,
-			";", "set", "-g", "pane-border-style", "fg=#26262b,bg="+aMain,
-			";", "set", "-g", "pane-active-border-style", "fg=#33333a,bg="+aMain,
-			";", "set", "-t", s, "status-style", "bg="+aBg+",fg=#7d7d87",
+		_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "window-style", paneStyle(aBg),
+			";", "set", "-p", "-t", p.d.Self, "window-active-style", paneStyle(aBg),
+			";", "set", "-g", "window-style", paneStyle(aMain),
+			";", "set", "-g", "window-active-style", paneStyle(aMain),
+			";", "set", "-g", "pane-border-style", "fg="+hLine+",bg="+aMain,
+			";", "set", "-g", "pane-active-border-style", "fg="+hLine2+",bg="+aMain,
+			";", "set", "-t", s, "status-style", "bg="+aBg+",fg="+hMuted,
 			";", "set", "-t", s, "status-format[0]", "#{@argus_tabs}",
 			";", "set", "-t", s, "status-position", "top",
 			";", "set", "-t", s, "status", "on")
@@ -150,9 +188,9 @@ func (p *Panel) tabsLine(shown string) string {
 			continue
 		}
 		name := strings.TrimRight(fit(p.sessionText(a), 18), " ")
-		style := "#[default,fg=#7d7d87]"
+		style := "#[default,fg=" + hMuted + "]"
 		if a.ID == shown {
-			style = "#[default,bg=#26262b,fg=#ececf0,bold]"
+			style = "#[default,bg=" + hTab + ",fg=" + hFg + ",bold]"
 			at = len(tabs)
 		}
 		t := style + " " + tmuxSpans([]span{p.appDot(a, now)}) + style + " " + tmuxSpans([]span{p.agentGlyph(a.Profile)}) +
@@ -182,13 +220,13 @@ func (p *Panel) tabsLine(shown string) string {
 	}
 	b.WriteString("#[default]" + strings.Repeat(" ", pad))
 	if lo > 0 {
-		b.WriteString("#[default,fg=#4c4c55]‹")
+		b.WriteString("#[default,fg=" + hFaint + "]‹")
 	}
 	for _, t := range tabs[lo:hi] {
 		b.WriteString(t.text + "#[default] ")
 	}
 	if hi < len(tabs) {
-		b.WriteString("#[default,fg=#4c4c55]›")
+		b.WriteString("#[default,fg=" + hFaint + "]›")
 	}
 	return b.String() + "#[default]"
 }
@@ -581,15 +619,15 @@ func (p *Panel) appPanelTitle() string {
 			done++
 		}
 	}
-	t := " #[fg=#ececf0,bold]argus#[nobold]"
+	t := " #[fg=" + hFg + ",bold]argus#[nobold]"
 	if need > 0 {
-		t += fmt.Sprintf("  #[fg=#f5b14c]◐ %d", need)
+		t += fmt.Sprintf("  #[fg="+hAmber+"]◐ %d", need)
 	}
 	if work > 0 {
-		t += fmt.Sprintf("  #[fg=#f5b14c]◜ %d", work)
+		t += fmt.Sprintf("  #[fg="+hAmber+"]◜ %d", work)
 	}
 	if done > 0 {
-		t += fmt.Sprintf("  #[fg=#4ade80]● %d", done)
+		t += fmt.Sprintf("  #[fg="+hGreen+"]● %d", done)
 	}
 	return t + " #[default]"
 }

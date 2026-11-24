@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -33,6 +34,29 @@ var tmuxConf string
 
 //go:embed assets/argus-status.ts
 var opencodePlugin string
+
+// Argus's themes for Claude Code, picked with /theme ("Argus dark",
+// "Argus light"); the panel's look follows the one chosen.
+var (
+	//go:embed assets/claude-theme-argus-dark.json
+	claudeThemeDark string
+	//go:embed assets/claude-theme-argus-light.json
+	claudeThemeLight string
+)
+
+// Argus's themes for the Fresh editor of the code column, the same colors.
+var (
+	//go:embed assets/fresh-theme-argus-dark.json
+	freshThemeDark string
+	//go:embed assets/fresh-theme-argus-light.json
+	freshThemeLight string
+)
+
+// FreshThemes are Fresh's theme files, by name (in ~/.config/fresh/themes).
+var FreshThemes = map[string]*string{"argus-dark": &freshThemeDark, "argus-light": &freshThemeLight}
+
+// ClaudeThemes are the theme files, by slug (the file name in <config>/themes).
+var ClaudeThemes = map[string]*string{"argus-dark": &claudeThemeDark, "argus-light": &claudeThemeLight}
 
 // PluginFile is the plugin's name inside opencode's plugin directory.
 const PluginFile = "argus-status.ts"
@@ -221,6 +245,35 @@ func Install(p paths.Paths, out io.Writer) error {
 			fmt.Fprintf(out, "statusLine:        %s %s\n", t.File, addStatusLineFile(t.File, p.StatusLine()))
 		}
 	}
+	// Each Claude account reads themes from its own folder (accounts that
+	// share settings.json through a link still have separate folders).
+	for _, pr := range cfg.Profiles {
+		if pr.Label() != "claude" {
+			continue
+		}
+		dir := filepath.Join(pr.ClaudeConfigDir(p.Home), "themes")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		for slug, body := range ClaudeThemes {
+			if err := os.WriteFile(filepath.Join(dir, slug+".json"), []byte(*body), 0o644); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintln(out, "themes claude:    ", dir, "(argus-dark, argus-light)")
+	}
+	if _, err := exec.LookPath("fresh"); err == nil {
+		dir := filepath.Join(p.Home, ".config", "fresh", "themes")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return err
+		}
+		for name, body := range FreshThemes {
+			if err := os.WriteFile(filepath.Join(dir, name+".json"), []byte(*body), 0o644); err != nil {
+				return err
+			}
+		}
+		fmt.Fprintln(out, "themes fresh:     ", dir, "(argus-dark, argus-light)")
+	}
 	if len(cfg.ProfilesFor("opencode")) > 0 {
 		dir := p.OpencodePlugins()
 		if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -262,6 +315,13 @@ func Uninstall(p paths.Paths, out io.Writer) error {
 					_ = writeWithBackup(t.File, cur, js)
 					fmt.Fprintln(out, i18n.T("install.removed"), "statusLine", t.File)
 				}
+			}
+		}
+	}
+	for _, pr := range cfg.Profiles {
+		if pr.Label() == "claude" {
+			for slug := range ClaudeThemes {
+				_ = os.Remove(filepath.Join(pr.ClaudeConfigDir(p.Home), "themes", slug+".json"))
 			}
 		}
 	}

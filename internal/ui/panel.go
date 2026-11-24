@@ -155,6 +155,9 @@ type Panel struct {
 	rail          bool              // the list folded into a rail (key b)
 	editorPane    string            // the editor shown (in the main window)
 	editorDir     string
+	themeFiles    map[string]themeFile // Claude settings file -> its theme, as last seen
+	claudeTheme   string               // the theme picked last in Claude Code
+	themeTick     int
 	lastEdit      map[string]string // session -> last edit opened in the code column
 	edW           int
 	dispW         int    // width of the session shown on the right
@@ -221,7 +224,7 @@ func New(d Deps) *Panel {
 		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
-		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
+		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, themeFiles: map[string]themeFile{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
@@ -238,6 +241,7 @@ func (p *Panel) Run() error {
 		}
 	}
 	_ = p.d.Tmux.SetPaneOptions(p.d.Self, "@argus_role", tmux.RolePanel)
+	p.themeCheck(true) // the palette, before the first drawing
 	if p.appLook() {
 		p.applyLook()
 	}
@@ -336,6 +340,7 @@ func (p *Panel) tick() {
 	p.sampleSessions(time.Now())
 	p.hibernateIdle(time.Now())
 	p.bgCheck()
+	p.themeCheck(false)
 	if p.mode == modeOverview {
 		p.captureScreens()
 	}
@@ -681,7 +686,7 @@ func (p *Panel) syncTitle(i int) {
 		icon, color = "◜", cWorking
 	}
 	esc := func(s string) string { return strings.ReplaceAll(s, "#", "##") }
-	title := fmt.Sprintf(" #[fg=%s]%s #[fg=#d7dae0,bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg=#6c717c] · %s · #[fg=%s]%s ",
+	title := fmt.Sprintf(" #[fg=%s]%s #[fg="+hText+",bold]%s#[nobold]  #[fg=%s,bold]%s#[nobold]#[fg="+hMuted+"] · %s · #[fg=%s]%s ",
 		tmuxColor(color), icon, esc(p.sessionText(a)),
 		p.accountHex(a.Profile), esc(p.tag(a.Profile)),
 		esc(p.d.Paths.Pretty(a.Dir)), tmuxColor(color), i18n.T(word))
@@ -692,14 +697,14 @@ func (p *Panel) syncTitle(i int) {
 		title += fmt.Sprintf("#[fg=%s]· %s ", tmuxColor(cWorking), agentsText(a.Subagents))
 	}
 	if r, ok := p.res[a.ID]; ok && r.RSS > 0 {
-		title += "#[fg=#6c717c]· " + size(r.RSS) + " "
+		title += "#[fg=" + hMuted + "]· " + size(r.RSS) + " "
 	}
 	if in, ok := p.profileUsage(a.Profile); ok && !in.FiveHour.Expired(time.Now()) {
 		c := pctColor(in.FiveHour.Percent)
 		if c == "" {
 			c = cQuiet
 		}
-		title += fmt.Sprintf("#[fg=#6c717c]· 5h #[fg=%s]%.0f%% ", tmuxColor(c), in.FiveHour.Percent)
+		title += fmt.Sprintf("#[fg="+hMuted+"]· 5h #[fg=%s]%.0f%% ", tmuxColor(c), in.FiveHour.Percent)
 	}
 	if p.titles[a.Pane] == title {
 		return
