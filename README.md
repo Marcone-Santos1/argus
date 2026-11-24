@@ -53,6 +53,7 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | Key | Action |
 | --- | --- |
 | `↑` `↓` | select; an open session shows on the right |
+| `Shift+↑` `Shift+↓` (or `K` `J`) | move the session up or down the list; at the edge of its folder, the whole folder moves |
 | `Enter` | enter the session, open a folder, or resume the past conversation |
 | `→ ←` | open / close a folder of past conversations |
 | `v` | overview: every session's screen side by side; arrows choose, Enter opens |

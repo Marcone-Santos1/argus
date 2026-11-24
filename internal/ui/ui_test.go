@@ -28,6 +28,7 @@ func TestParseKeys(t *testing.T) {
 		{"\x15", []string{"ctrl-U"}},
 		{"aç", []string{"a", "ç"}},
 		{"\x1b[Z", []string{"shift-tab"}},
+		{"\x1b[1;2A\x1b[1;2B", []string{"shift-up", "shift-down"}},
 		{"\x1b[1;5C", nil}, // arrow with a modifier: ignored
 	}
 	for _, c := range cases {

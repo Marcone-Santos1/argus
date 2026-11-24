@@ -88,6 +88,7 @@ type Pane struct {
 	Height   int
 	Zoomed   bool  // its window has a zoomed pane
 	Asleep   int64 // unix time it was hibernated (0 = running)
+	Order    int64 // place in the list set by moving it (0 = by creation)
 }
 
 // InMain reports whether the pane is in the main window (list + visible session).
@@ -98,6 +99,7 @@ var paneFields = []string{
 	"#{@argus_role}", "#{@argus_id}", "#{@argus_profile}", "#{@argus_dir}", "#{@argus_name}",
 	"#{@argus_created}", "#{@argus_session}", "#{@argus_worktree}",
 	"#{pane_width}", "#{pane_height}", "#{window_zoomed_flag}", "#{@argus_sleep}",
+	"#{@argus_order}",
 }
 
 // PaneFormat is the list-panes format used by ListPanes (tab separated).
@@ -126,11 +128,12 @@ func ParsePanes(out string) []Pane {
 		pw, _ := strconv.Atoi(f[13])
 		ph, _ := strconv.Atoi(f[14])
 		asleep, _ := strconv.ParseInt(f[16], 10, 64)
+		order, _ := strconv.ParseInt(f[17], 10, 64)
 		ps = append(ps, Pane{
 			ID: f[0], Window: f[1], Index: idx, Dead: f[3] == "1", PID: pid,
 			Role: f[5], AgentID: f[6], Profile: f[7], Dir: f[8], Name: f[9],
 			Created: created, Session: f[11], Worktree: f[12],
-			Width: pw, Height: ph, Zoomed: f[15] == "1", Asleep: asleep,
+			Width: pw, Height: ph, Zoomed: f[15] == "1", Asleep: asleep, Order: order,
 		})
 	}
 	return ps

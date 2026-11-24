@@ -80,6 +80,7 @@ var messages = map[string][2]string{
 	"help.worktree":     {"new session in a worktree of the repository", "nova sessão numa worktree do repositório"},
 	"help.history":      {"all past conversations, searchable", "todas as conversas antigas, com busca"},
 	"help.filter":       {"filter the list", "filtra a lista"},
+	"help.reorder":      {"move the session up or down (at a folder's edge, the whole folder)", "sobe ou desce a sessão (na ponta da pasta, a pasta inteira)"},
 	"help.rename":       {"rename the session", "renomeia a sessão"},
 	"help.width":        {"narrow / widen the list (or drag the border)", "estreita / alarga a lista (ou arraste a borda)"},
 	"help.click":        {"select; double click enters or resumes", "seleciona; clique duplo entra ou retoma"},

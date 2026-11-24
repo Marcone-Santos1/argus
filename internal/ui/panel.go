@@ -11,7 +11,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"sort"
 	"strings"
 	"syscall"
 	"time"
@@ -45,6 +44,7 @@ type agent struct {
 	Session                      string // resumed or detected conversation (opencode)
 	Worktree                     string // source repository when running in a worktree
 	Created                      int64
+	Order                        int64 // place set by moving it (0 = by creation)
 	Displayed                    bool
 	PID                          int // the pane's process (to find its background shells)
 	Status                       string
@@ -374,7 +374,7 @@ func (p *Panel) reconcile() {
 				continue
 			}
 			a := agent{ID: pn.AgentID, Pane: pn.ID, Profile: pn.Profile, Dir: pn.Dir, Name: pn.Name,
-				Session: pn.Session, Worktree: pn.Worktree, Created: pn.Created, Displayed: pn.InMain(), PID: pn.PID}
+				Session: pn.Session, Worktree: pn.Worktree, Created: pn.Created, Order: pn.Order, Displayed: pn.InMain(), PID: pn.PID}
 			if pn.Asleep > 0 {
 				a.Asleep, a.PID = time.Unix(pn.Asleep, 0), 0
 			}
@@ -413,7 +413,7 @@ func (p *Panel) reconcile() {
 		_, _ = p.d.Tmux.Run("kill-pane", "-t", extra.ID)
 	}
 
-	sort.SliceStable(agents, func(i, j int) bool { return agents[i].Created < agents[j].Created })
+	sortAgents(agents)
 	key := p.selKey()
 	p.agents = agents
 	for i := range p.agents {

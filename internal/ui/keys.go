@@ -208,6 +208,10 @@ func (p *Panel) keyList(k string) {
 				p.scheduleSwap()
 			}
 		}
+	case "shift-up", "K":
+		p.moveSession(-1)
+	case "shift-down", "J":
+		p.moveSession(1)
 	case "enter":
 		if p.sel >= 0 && p.sel < len(p.items) && p.items[p.sel].agent < 0 {
 			if p.items[p.sel].folder {
@@ -321,10 +325,12 @@ func parseKeys(b []byte) []string {
 						continue
 					}
 					switch b[j] {
-					case 'A':
-						ks = append(ks, "up")
-					case 'B':
-						ks = append(ks, "down")
+					case 'A', 'B':
+						name := map[byte]string{'A': "up", 'B': "down"}[b[j]]
+						if string(b[i+2:j]) == "1;2" { // Shift+arrow
+							name = "shift-" + name
+						}
+						ks = append(ks, name)
 					case 'C':
 						if j == i+2 { // plain arrow, not ctrl/alt+arrow
 							ks = append(ks, "right")
