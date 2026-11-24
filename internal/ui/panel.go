@@ -155,6 +155,9 @@ type Panel struct {
 	rail          bool              // the list folded into a rail (key b)
 	editorPane    string            // the editor shown (in the main window)
 	editorDir     string
+	themes        map[string]themeCache // Claude settings file -> its theme
+	paneBg        map[string]string     // pane -> the background set on it
+	themeTick     int
 	lastEdit      map[string]string // session -> last edit opened in the code column
 	edW           int
 	dispW         int    // width of the session shown on the right
@@ -221,7 +224,7 @@ func New(d Deps) *Panel {
 		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
-		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
+		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, themes: map[string]themeCache{}, paneBg: map[string]string{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
@@ -336,6 +339,7 @@ func (p *Panel) tick() {
 	p.sampleSessions(time.Now())
 	p.hibernateIdle(time.Now())
 	p.bgCheck()
+	p.themeCheck()
 	if p.mode == modeOverview {
 		p.captureScreens()
 	}
@@ -465,6 +469,7 @@ func (p *Panel) reconcile() {
 	}
 	for i := range p.agents {
 		p.syncTitle(i)
+		p.syncPaneBg(i)
 	}
 	p.saveSnapshot()
 	for id := range p.lastState {

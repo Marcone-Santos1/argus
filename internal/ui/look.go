@@ -95,6 +95,9 @@ func (p *Panel) applyLook() {
 			";", "set", "-u", "-t", s, "status-position",
 			";", "set", "-u", "-t", s, "status")
 	}
+	for i := range p.agents {
+		p.syncPaneBg(i)
+	}
 }
 
 // tmuxSpans writes spans in tmux's style syntax (#[fg=...]), for the status

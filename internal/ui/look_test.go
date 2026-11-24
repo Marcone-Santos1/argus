@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -141,5 +142,20 @@ func TestAppLookIsDefault(t *testing.T) {
 	p.handleKey("L")
 	if p.appLook() || p.prefs.Look != lookClassic {
 		t.Fatalf("L: %q", p.prefs.Look)
+	}
+}
+
+func TestThemeOf(t *testing.T) {
+	p := testPanel(t)
+	dir := p.d.Paths.Home + "/.claude"
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(dir+"/settings.json", []byte(`{"theme":"light-daltonized"}`), 0o644)
+	if got := p.themeOf("personal"); got != "light-daltonized" {
+		t.Fatalf("theme: %q", got)
+	}
+	if got := p.themeOf("opencode"); got != "" {
+		t.Fatalf("not Claude: %q", got)
 	}
 }
