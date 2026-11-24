@@ -377,6 +377,10 @@ func (p *Panel) reconcile() {
 			continue
 		}
 		if pn.Role == tmux.RoleEditor {
+			if pn.Dead { // the editor was quit: gone, the next e starts a new one
+				_, _ = p.d.Tmux.Run("kill-pane", "-t", pn.ID)
+				continue
+			}
 			editors[pn.Dir] = pn.ID
 			if pn.InMain() {
 				mainEditor, mainEditorDir, edW = pn.ID, pn.Dir, pn.Width
