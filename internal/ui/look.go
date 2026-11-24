@@ -72,9 +72,10 @@ func (p *Panel) applyLook() {
 			";", "set", "-g", "pane-border-style", "fg=#26262b",
 			";", "set", "-g", "pane-active-border-style", "fg=#33333a",
 			";", "set", "-t", s, "status-style", "bg="+aBg+",fg=#7d7d87",
-			";", "set", "-t", s, "status-format[0]", "#{@argus_status}",
-			";", "set", "-t", s, "status", "on")
-		p.statusText = ""
+			";", "set", "-t", s, "status-format[0]", "#{@argus_tabs}",
+			";", "set", "-t", s, "status-format[1]", "#{@argus_status}",
+			";", "set", "-t", s, "status", "2")
+		p.statusText, p.tabsText = "", ""
 	} else {
 		_, _ = p.d.Tmux.Run("set", "-pu", "-t", p.d.Self, "window-style",
 			";", "set", "-pu", "-t", p.d.Self, "window-active-style",
@@ -83,9 +84,6 @@ func (p *Panel) applyLook() {
 			";", "set", "-u", "-t", s, "status-style",
 			";", "set", "-u", "-t", s, "status-format",
 			";", "set", "-u", "-t", s, "status")
-	}
-	for i := range p.agents {
-		p.syncTitle(i)
 	}
 }
 
@@ -149,13 +147,13 @@ func (p *Panel) syncStatus(now time.Time) {
 	}
 }
 
-// tabTitle is, in the app look, the border above the session on the right:
-// one tab per open session, the shown one highlighted.
-func (p *Panel) tabTitle(shown agent) string {
+// tabsLine is, in the app look, the status line's first row: one tab per
+// open session, under the session on the right, the shown one highlighted.
+// Each tab is a tmux range, so a click on it reaches the panel (see _tab).
+func (p *Panel) tabsLine(shown string) string {
 	type tab struct {
 		text string
-		on   bool
-		id   string
+		w    int
 	}
 	var tabs []tab
 	at := 0
@@ -168,78 +166,68 @@ func (p *Panel) tabTitle(shown agent) string {
 		if !a.Asleep.IsZero() {
 			continue
 		}
-		on := a.ID == shown.ID
-		name := fit(p.sessionText(a), 18)
-		name = strings.TrimRight(name, " ")
-		dot := p.appDot(a, now)
+		name := strings.TrimRight(fit(p.sessionText(a), 18), " ")
 		style := "#[default,fg=#7d7d87]"
-		if on {
-			style = "#[default,bg=#0f0f11,fg=#ececf0,bold]"
+		if a.ID == shown {
+			style = "#[default,bg=#26262b,fg=#ececf0,bold]"
 			at = len(tabs)
 		}
-		t := style + " " + tmuxSpans([]span{dot}) + style + " " + tmuxSpans([]span{p.agentGlyph(a.Profile)}) + style + " " + strings.ReplaceAll(name, "#", "##") + " "
-		tabs = append(tabs, tab{t, on, a.ID})
+		t := style + " " + tmuxSpans([]span{p.appDot(a, now)}) + style + " " + tmuxSpans([]span{p.agentGlyph(a.Profile)}) +
+			style + " " + strings.ReplaceAll(name, "#", "##") + " "
+		tabs = append(tabs, tab{"#[range=user|" + a.ID + "]" + t + "#[norange]", width(stripTmux(t)) + 1})
 	}
 	// Keep the shown tab and its neighbours when they do not all fit.
-	room := max(p.dispW-4, 20)
-	tw := func(t tab) int { return width(stripTmux(t.text)) + 1 }
+	room := max(p.dispW-2, 20)
 	total := 0
 	for _, t := range tabs {
-		total += tw(t)
+		total += t.w
 	}
 	lo, hi := 0, len(tabs)
 	for total > room && hi-lo > 1 {
 		if at-lo > hi-1-at {
-			total -= tw(tabs[lo])
+			total -= tabs[lo].w
 			lo++
 		} else {
-			total -= tw(tabs[hi-1])
+			total -= tabs[hi-1].w
 			hi--
 		}
 	}
 	var b strings.Builder
-	col := 0
-	hits := p.tabHits[:0]
+	b.WriteString("#[default]" + strings.Repeat(" ", p.w+1)) // under the list: empty
 	if lo > 0 {
 		b.WriteString("#[default,fg=#4c4c55]‹")
-		col++
 	}
 	for _, t := range tabs[lo:hi] {
-		n := width(stripTmux(t.text))
-		hits = append(hits, tabHit{col, col + n, t.id})
-		col += n + 1
-		b.WriteString(t.text + "#[default,fg=#26262b]│")
+		b.WriteString(t.text + "#[default] ")
 	}
-	p.tabHits = hits
 	if hi < len(tabs) {
 		b.WriteString("#[default,fg=#4c4c55]›")
 	}
 	return b.String() + "#[default]"
 }
 
-// tabHit is where a tab sits on the border, in columns from the title's start.
-type tabHit struct {
-	from, to int
-	id       string
-}
-
-// tmux draws a pane's title this many columns right of the pane's left edge.
-const titleIndent = 2
-
-// clickTab shows the session whose tab was clicked (x, y in the window).
-func (p *Panel) clickTab(x, y int) {
-	if !p.appLook() || y != 0 || x <= p.w {
+// syncTabs writes the tabs row when it changes.
+func (p *Panel) syncTabs() {
+	shown := ""
+	for _, a := range p.agents {
+		if a.Displayed {
+			shown = a.ID
+		}
+	}
+	t := p.tabsLine(shown)
+	if t == p.tabsText {
 		return
 	}
-	col := x - (p.w + 1) - titleIndent
-	for _, h := range p.tabHits {
-		if col >= h.from && col < h.to {
-			if p.selectKey("a:" + h.id) {
-				p.swapC = nil
-				p.showSelected()
-			}
-			return
-		}
+	if _, err := p.d.Tmux.Run("set", "-t", tmux.Session, "@argus_tabs", t); err == nil {
+		p.tabsText = t
+	}
+}
+
+// clickTab shows the session whose tab was clicked.
+func (p *Panel) clickTab(id string) {
+	if p.appLook() && p.selectKey("a:"+id) {
+		p.swapC = nil
+		p.showSelected()
 	}
 }
 
@@ -469,11 +457,7 @@ func (p *Panel) viewListApp() []string {
 	}
 	mark(-1)
 	p.syncPanelTitle()
-	for i := range p.agents {
-		if p.agents[i].Displayed {
-			p.syncTitle(i)
-		}
-	}
+	p.syncTabs()
 	p.syncStatus(now)
 	return p.layoutClick(body, targets, p.footer(), focus)
 }

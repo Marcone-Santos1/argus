@@ -55,47 +55,32 @@ func TestTmuxSpans(t *testing.T) {
 	}
 }
 
-func TestTabTitle(t *testing.T) {
+func TestTabsLine(t *testing.T) {
 	p := testPanel(t)
+	p.w = 30
 	p.prefs.Look = lookApp
-	p.dispW = 60
+	p.dispW = 80
 	p.agents = []agent{
 		{ID: "a1", Dir: "/p/api", Name: "Api work", Status: status.Done, Created: 1},
 		{ID: "b1", Dir: "/p/site", Name: "Site fix", Status: status.Working, Created: 2},
 	}
 	p.rebuildItems("")
-	tabs := stripTmux(p.tabTitle(p.agents[1]))
-	if !strings.Contains(tabs, "Api work") || !strings.Contains(tabs, "Site fix") {
-		t.Fatalf("tabs: %q", tabs)
+	line := p.tabsLine("b1")
+	if !strings.Contains(line, "#[range=user|a1]") || !strings.Contains(line, "#[range=user|b1]") {
+		t.Fatalf("ranges: %q", line)
+	}
+	plain := stripTmux(line)
+	if !strings.HasPrefix(plain, strings.Repeat(" ", 31)) || !strings.Contains(plain, "Api work") {
+		t.Fatalf("tabs: %q", plain)
 	}
 	p.dispW = 20 // only the shown tab fits
-	tabs = stripTmux(p.tabTitle(p.agents[1]))
-	if strings.Contains(tabs, "Api work") || !strings.Contains(tabs, "Site fix") || !strings.HasPrefix(tabs, "‹") {
-		t.Fatalf("narrow tabs: %q", tabs)
-	}
-}
-
-func TestClickTab(t *testing.T) {
-	p := testPanel(t)
-	p.w = 40
-	p.prefs.Look = lookApp
-	p.dispW = 100
-	p.agents = []agent{
-		{ID: "a1", Dir: "/p/api", Name: "Api work", Status: status.Done, Created: 1, Displayed: true},
-		{ID: "b1", Dir: "/p/site", Name: "Site fix", Status: status.Done, Created: 2},
+	plain = stripTmux(p.tabsLine("b1"))
+	if strings.Contains(plain, "Api work") || !strings.Contains(plain, "Site fix") || !strings.Contains(plain, "‹") {
+		t.Fatalf("narrow tabs: %q", plain)
 	}
 	p.rebuildItems("a:a1")
-	p.tabTitle(p.agents[0])
-	if len(p.tabHits) != 2 {
-		t.Fatalf("hits: %+v", p.tabHits)
-	}
-	x := p.w + 1 + titleIndent + p.tabHits[1].from + 1
-	p.clickTab(x, 1) // not the border row: nothing
-	if p.selKey() != "a:a1" {
-		t.Fatalf("moved on a body click: %s", p.selKey())
-	}
-	p.clickTab(x, 0)
+	p.clickTab("b1")
 	if p.selKey() != "a:b1" {
-		t.Fatalf("tab click: %s", p.selKey())
+		t.Fatalf("click: %s", p.selKey())
 	}
 }
