@@ -217,6 +217,9 @@ func section(label string, w int) string {
 // panelTitle is the text tmux draws on the panel's top border: the name and,
 // on its right, how many sessions are in each state.
 func (p *Panel) panelTitle() string {
+	if p.appLook() {
+		return p.appPanelTitle()
+	}
 	counts := map[string]int{}
 	for _, a := range p.agents {
 		st := a.Status

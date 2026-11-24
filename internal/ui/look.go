@@ -489,7 +489,7 @@ func (p *Panel) appRows(a agent, sel, asleep bool, now time.Time, w int) []strin
 		if in.Model != "" {
 			add(sp(in.Model, aMuted))
 		}
-		if in.Context >= 0 && !asleep {
+		if in.Context > 0 && !asleep {
 			on, off := cells(in.Context, 4)
 			c := ctxColor(in.Context)
 			if c == cQuiet {
@@ -538,4 +538,32 @@ func (p *Panel) needCard(a agent, sel bool, now time.Time, w int) []string {
 	}
 	out = append(out, card(w, bg, []span{bar, sp("     ", ""), sp(q, aSoft)}, []span{sp(i18n.T("hint.answer"), aAmber)}))
 	return out
+}
+
+// appPanelTitle is the panel's border title in the app look: the name and how
+// many sessions need you, work and are done, in the look's colors.
+func (p *Panel) appPanelTitle() string {
+	var need, work, done int
+	for _, a := range p.agents {
+		switch {
+		case !a.Asleep.IsZero():
+		case a.Status == status.Waiting:
+			need++
+		case a.Status == status.Working || p.shells[a.ID] > 0:
+			work++
+		case a.Status == status.Done:
+			done++
+		}
+	}
+	t := " #[fg=#ececf0,bold]argus#[nobold]"
+	if need > 0 {
+		t += fmt.Sprintf("  #[fg=#f5b14c]◐ %d", need)
+	}
+	if work > 0 {
+		t += fmt.Sprintf("  #[fg=#f5b14c]◜ %d", work)
+	}
+	if done > 0 {
+		t += fmt.Sprintf("  #[fg=#4ade80]● %d", done)
+	}
+	return t + " #[default]"
 }
