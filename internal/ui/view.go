@@ -271,12 +271,12 @@ func (p *Panel) footer() []string {
 	if r := p.reading; r.DiskFree > 0 && r.DiskFree < diskLow {
 		foot = append(foot, line(w, "", sp(i18n.T("list.diskLow", size(r.DiskFree)), red)))
 	}
-	if p.appLook() { // the limits and the machine are on tmux's status line
+	if p.appLook() {
 		foot = append(foot, "")
 	} else {
 		foot = append(foot, line(w, "", sp(strings.Repeat("─", w), cFaint)))
-		foot = append(foot, p.statsLines(w)...)
 	}
+	foot = append(foot, p.statsLines(w)...)
 	for _, h := range wrapHints(tr(p.hintKeys()...), w) {
 		foot = append(foot, line(w, "", sp(stripANSI(h), cFaint)))
 	}

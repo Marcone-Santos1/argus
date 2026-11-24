@@ -73,9 +73,9 @@ func (p *Panel) applyLook() {
 			";", "set", "-g", "pane-active-border-style", "fg=#33333a",
 			";", "set", "-t", s, "status-style", "bg="+aBg+",fg=#7d7d87",
 			";", "set", "-t", s, "status-format[0]", "#{@argus_tabs}",
-			";", "set", "-t", s, "status-format[1]", "#{@argus_status}",
-			";", "set", "-t", s, "status", "2")
-		p.statusText, p.tabsText = "", ""
+			";", "set", "-t", s, "status-position", "top",
+			";", "set", "-t", s, "status", "on")
+		p.tabsText = ""
 	} else {
 		_, _ = p.d.Tmux.Run("set", "-pu", "-t", p.d.Self, "window-style",
 			";", "set", "-pu", "-t", p.d.Self, "window-active-style",
@@ -83,6 +83,7 @@ func (p *Panel) applyLook() {
 			";", "set", "-g", "pane-active-border-style", "fg=#4d6491",
 			";", "set", "-u", "-t", s, "status-style",
 			";", "set", "-u", "-t", s, "status-format",
+			";", "set", "-u", "-t", s, "status-position",
 			";", "set", "-u", "-t", s, "status")
 	}
 }
@@ -120,34 +121,7 @@ func escHex(esc, prefix string) string {
 	return fmt.Sprintf("#%02x%02x%02x", r, g, b)
 }
 
-// syncStatus writes tmux's status line: each account's limits on the left,
-// the machine on the right. A change in the limits shows at once; the
-// machine's numbers, at most every 10 s (each write is a tmux command).
-func (p *Panel) syncStatus(now time.Time) {
-	var acc []string
-	for _, groups := range p.usageGroups(now) {
-		var parts []string
-		for _, g := range groups {
-			parts = append(parts, tmuxSpans(g))
-		}
-		acc = append(acc, "#[fg=#d97757]✳ "+strings.Join(parts, "  "))
-	}
-	left := strings.Join(acc, "     ")
-	var mach []string
-	for _, g := range p.machineGroups() {
-		mach = append(mach, tmuxSpans(g))
-	}
-	right := strings.Join(mach, "   ")
-	text := " " + left + "#[align=right]" + right + " "
-	if text == p.statusText || (left == p.statusLeft && now.Sub(p.statusAt) < 10*time.Second) {
-		return
-	}
-	if _, err := p.d.Tmux.Run("set", "-t", tmux.Session, "@argus_status", text); err == nil {
-		p.statusText, p.statusLeft, p.statusAt = text, left, now
-	}
-}
-
-// tabsLine is, in the app look, the status line's first row: one tab per
+// tabsLine is, in the app look, tmux's status line at the top: one tab per
 // open session, under the session on the right, the shown one highlighted.
 // Each tab is a tmux range, so a click on it reaches the panel (see _tab).
 func (p *Panel) tabsLine(shown string) string {
@@ -458,7 +432,6 @@ func (p *Panel) viewListApp() []string {
 	mark(-1)
 	p.syncPanelTitle()
 	p.syncTabs()
-	p.syncStatus(now)
 	return p.layoutClick(body, targets, p.footer(), focus)
 }
 
