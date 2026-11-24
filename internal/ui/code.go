@@ -5,10 +5,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/Marcone-Santos1/argus/internal/config"
+	"github.com/Marcone-Santos1/argus/internal/history"
 	"github.com/Marcone-Santos1/argus/internal/i18n"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
@@ -95,6 +97,11 @@ func (p *Panel) editorFor(dir string) (string, error) {
 			}
 		}
 	}
+	if isFresh(cmd) {
+		// A named Fresh daemon per folder: the panel can open files in it,
+		// and reopening the column finds the same files open.
+		cmd = "fresh -a " + freshName(dir)
+	}
 	shell := os.Getenv("SHELL")
 	if shell == "" {
 		shell = "/bin/zsh"
@@ -153,4 +160,65 @@ func (p *Panel) openCodeOnly(dir string) {
 	p.reconcile()
 	p.applyWidth()
 	_, _ = p.d.Tmux.Run("select-pane", "-t", pane)
+}
+
+// isFresh: the editor is Fresh run plainly ("fresh" or "fresh ."), so the
+// panel manages it (named daemon, follows the agent's edits).
+func isFresh(cmd string) bool {
+	f := strings.Fields(cmd)
+	return len(f) > 0 && filepath.Base(f[0]) == "fresh" && (len(f) == 1 || (len(f) == 2 && f[1] == "."))
+}
+
+// freshName is the Fresh daemon of a folder's editor.
+func freshName(dir string) string {
+	return fmt.Sprintf("argus-%x", sha1.Sum([]byte(dir)))[:14]
+}
+
+// followEdit opens, in the code column, the file a session just changed, at
+// the changed line: when the column shows that session's folder and you are
+// not typing in it. The transcript is read a moment later, once Claude has
+// written the change there.
+func (p *Panel) followEdit(id string) {
+	var a *agent
+	for i := range p.agents {
+		if p.agents[i].ID == id {
+			a = &p.agents[i]
+		}
+	}
+	if a == nil || p.editorPane == "" || p.editorDir != a.Dir || !isFresh(p.d.Config.Editor) {
+		return
+	}
+	path := p.transcriptOf(*a)
+	if path == "" {
+		return
+	}
+	pane, name, tm, ch, last := p.editorPane, freshName(a.Dir), p.d.Tmux, p.asyncC, p.lastEdit[id]
+	go func() {
+		time.Sleep(300 * time.Millisecond)
+		e, ok := history.LastEdit(path)
+		if !ok || e.Key == last {
+			return
+		}
+		if active, err := tm.Run("display", "-p", "-t", pane, "#{pane_active}"); err == nil && active == "1" {
+			return // you are in the editor: it does not jump under you
+		}
+		_ = exec.Command("fresh", "--cmd", "daemon", "open-file", name, fmt.Sprintf("%s:%d", e.File, e.Line)).Run()
+		ch <- func() { p.lastEdit[id] = e.Key }
+	}()
+}
+
+// transcriptOf is a Claude session's transcript ("" when unknown).
+func (p *Panel) transcriptOf(a agent) string {
+	prof, ok := p.profileOf(a.Profile)
+	if !ok || prof.Label() != history.Claude || a.Session == "" {
+		return ""
+	}
+	path, ok := p.transcripts[a.Session]
+	if !ok {
+		path = history.TranscriptPath(filepath.Join(prof.ClaudeConfigDir(p.d.Paths.Home), "projects"), a.Session)
+		if path != "" {
+			p.transcripts[a.Session] = path
+		}
+	}
+	return path
 }

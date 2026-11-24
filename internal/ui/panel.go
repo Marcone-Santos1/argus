@@ -155,6 +155,7 @@ type Panel struct {
 	rail          bool              // the list folded into a rail (key b)
 	editorPane    string            // the editor shown (in the main window)
 	editorDir     string
+	lastEdit      map[string]string // session -> last edit opened in the code column
 	edW           int
 	dispW         int    // width of the session shown on the right
 	statusText    string // what the status line shows (app look)
@@ -220,7 +221,7 @@ func New(d Deps) *Panel {
 		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
-		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
+		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
 		oc: map[string]status.Opencode{}, lastState: map[string]string{}, titles: map[string]string{},
 		out: bufio.NewWriterSize(os.Stdout, 32<<10), w: 40, h: 20,
 	}
@@ -629,6 +630,12 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 			p.reconcile()
 			p.refreshRecent()
+		}
+	case name == "_edit":
+		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
+			if data, err := os.ReadFile(ev.Name); err == nil {
+				p.followEdit(strings.TrimSpace(string(data)))
+			}
 		}
 	case name == "_tab":
 		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {

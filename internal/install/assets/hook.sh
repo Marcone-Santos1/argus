@@ -44,6 +44,8 @@ case "$1" in
   # is not a question.
   notify) [ "$cur" = working ] && [ "$held" != 1 ] || exit 0; new=waiting ;;
   tool)   [ "$cur" = waiting ] || exit 0; new=working ;;
+  # A file changed: tell the panel (its code column follows the agent).
+  edit)   printf '%s\n' "$ARGUS_ID" > "__STATE_DIR__/_edit" 2>/dev/null; exit 0 ;;
   stop)
     if [ "$sub" -gt 0 ]; then new=working held=1; else new=done held=; fi
     ;;

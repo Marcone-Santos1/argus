@@ -3,6 +3,7 @@ package install
 import (
 	"bytes"
 	"encoding/json"
+	"github.com/tidwall/gjson"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -243,6 +244,13 @@ func TestHookScript(t *testing.T) {
 	if _, sid := runIn("abc123", "prompt", ""); sid != "7f3a-c2" {
 		t.Fatalf("the id stays: %q", sid)
 	}
+	// A file change only tells the panel which session made it.
+	if st, _ := runIn("abc123", "edit", ""); st != "working" {
+		t.Fatalf("edit keeps the state: %q", st)
+	}
+	if b, _ := os.ReadFile(filepath.Join(state, "_edit")); string(b) != "abc123\n" {
+		t.Fatalf("edit notice: %q", b)
+	}
 	if _, sid := runIn("abc123", "start", `{"session_id": "new-id", "x": 1}`); sid != "new-id" {
 		t.Fatalf("a new SessionStart (/clear, /resume) updates the id, spaced JSON too: %q", sid)
 	}
@@ -301,7 +309,7 @@ func TestHookScript(t *testing.T) {
 	if got := run("../x", "prompt"); got != "" {
 		t.Fatalf("an invalid id cannot write outside the folder: %q", got)
 	}
-	if entries, _ := os.ReadDir(state); len(entries) != 1 {
+	if entries, _ := os.ReadDir(state); len(entries) != 2 { // the session's file and _edit
 		t.Fatalf("only the session's file: %v", entries)
 	}
 }
@@ -329,5 +337,24 @@ func TestStatusLine(t *testing.T) {
 	s := StatusLineScript("/st", "/bin/dash")
 	if !strings.Contains(s, "/st/_usage/$ARGUS_ID") || !strings.HasPrefix(s, "#!/bin/dash") {
 		t.Fatal(s)
+	}
+}
+
+func TestEditHookEntry(t *testing.T) {
+	js, n, err := AddHooks([]byte(`{}`), "/bin/dash /h.sh", ClaudeEvents, true)
+	if err != nil || n != len(ClaudeEvents) {
+		t.Fatalf("added %d: %v", n, err)
+	}
+	post := gjson.GetBytes(js, "hooks.PostToolUse").Array()
+	if len(post) != 2 || post[0].Get("matcher").String() != "" || post[1].Get("matcher").String() != "Edit|Write|MultiEdit|NotebookEdit" {
+		t.Fatalf("PostToolUse: %s", gjson.GetBytes(js, "hooks.PostToolUse").Raw)
+	}
+	if _, n, _ := AddHooks(js, "/bin/dash /h.sh", ClaudeEvents, true); n != 0 {
+		t.Fatalf("a second install adds %d", n)
+	}
+	// An install from before the edit hook gains just that entry.
+	old, _, _ := AddHooks([]byte(`{}`), "/bin/dash /h.sh", ClaudeEvents[:len(ClaudeEvents)-1], true)
+	if _, n, _ := AddHooks(old, "/bin/dash /h.sh", ClaudeEvents, true); n != 1 {
+		t.Fatalf("upgrade adds %d", n)
 	}
 }

@@ -123,7 +123,7 @@ max_sessions = 8
 hibernate_after = "2h"
 
 # The editor of the code column (key e), run in the session's folder.
-editor = "fresh ."
+editor = "fresh"
 
 # macOS/desktop notifications when a session changes to these states
 # (waiting = waiting for you, done = finished). An empty list turns them off.
@@ -277,7 +277,7 @@ func Parse(data, home string) (*Config, error) {
 		c.HibernateAfter = "2h"
 	}
 	if c.Editor == "" {
-		c.Editor = "fresh ."
+		c.Editor = "fresh"
 	}
 	if !md.IsDefined("notify") {
 		c.Notify = []string{"waiting", "done"}

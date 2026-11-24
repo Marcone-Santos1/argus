@@ -109,3 +109,14 @@ func TestBrowseOffersCreate(t *testing.T) {
 		t.Fatalf("an existing folder is not offered for creation: %+v", got)
 	}
 }
+
+func TestIsFresh(t *testing.T) {
+	for cmd, want := range map[string]bool{"fresh": true, "fresh .": true, "/opt/homebrew/bin/fresh": true, "fresh -a x": false, "micro": false, "": false} {
+		if isFresh(cmd) != want {
+			t.Errorf("isFresh(%q) = %v", cmd, !want)
+		}
+	}
+	if a, b := freshName("/p/a"), freshName("/p/b"); a == b || len(a) != 14 {
+		t.Fatalf("names: %q %q", a, b)
+	}
+}

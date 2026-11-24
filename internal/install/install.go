@@ -5,6 +5,7 @@ package install
 
 import (
 	_ "embed"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -37,22 +38,27 @@ var opencodePlugin string
 const PluginFile = "argus-status.ts"
 
 // Event links an agent hook event to the argument the Argus hook receives.
-type Event struct{ Name, Arg string }
+type Event struct {
+	Name, Arg string
+	Tools     string // Claude's matcher: only these tools ("" = all)
+}
 
 // Hook events per agent. The hook script maps the argument to a state.
 var (
 	ClaudeEvents = []Event{
-		{"SessionStart", "start"}, {"UserPromptSubmit", "prompt"}, {"PermissionRequest", "perm"},
-		{"Notification", "notify"}, {"PostToolUse", "tool"}, {"Stop", "stop"}, {"SessionEnd", "end"},
-		{"SubagentStart", "substart"}, {"SubagentStop", "substop"},
+		{"SessionStart", "start", ""}, {"UserPromptSubmit", "prompt", ""}, {"PermissionRequest", "perm", ""},
+		{"Notification", "notify", ""}, {"PostToolUse", "tool", ""}, {"Stop", "stop", ""}, {"SessionEnd", "end", ""},
+		{"SubagentStart", "substart", ""}, {"SubagentStop", "substop", ""},
+		// A file change: the code column opens it (see the panel's _edit).
+		{"PostToolUse", "edit", "Edit|Write|MultiEdit|NotebookEdit"},
 	}
 	CodexEvents = []Event{
-		{"SessionStart", "start"}, {"UserPromptSubmit", "prompt"}, {"PostToolUse", "tool"},
-		{"Stop", "stop"}, {"SessionEnd", "end"},
+		{"SessionStart", "start", ""}, {"UserPromptSubmit", "prompt", ""}, {"PostToolUse", "tool", ""},
+		{"Stop", "stop", ""}, {"SessionEnd", "end", ""},
 	}
 	GeminiEvents = []Event{
-		{"SessionStart", "start"}, {"BeforeAgent", "prompt"}, {"Notification", "notify"},
-		{"AfterTool", "tool"}, {"AfterAgent", "stop"}, {"SessionEnd", "end"},
+		{"SessionStart", "start", ""}, {"BeforeAgent", "prompt", ""}, {"Notification", "notify", ""},
+		{"AfterTool", "tool", ""}, {"AfterAgent", "stop", ""}, {"SessionEnd", "end", ""},
 	}
 )
 
@@ -272,9 +278,9 @@ func Uninstall(p paths.Paths, out io.Writer) error {
 	return nil
 }
 
-func hookEntry(command string, matcher bool) string {
+func hookEntry(command string, matcher bool, tools string) string {
 	if matcher {
-		return fmt.Sprintf(`{"matcher":"","hooks":[{"type":"command","command":%q}]}`, command)
+		return fmt.Sprintf(`{"matcher":%q,"hooks":[{"type":"command","command":%q}]}`, tools, command)
 	}
 	return fmt.Sprintf(`{"hooks":[{"type":"command","command":%q}]}`, command)
 }
@@ -293,14 +299,14 @@ func AddHooks(data []byte, hook string, events []Event, matcher bool) ([]byte, i
 	for _, e := range events {
 		key := "hooks." + e.Name
 		cur := gjson.Get(js, key)
-		if strings.Contains(cur.Raw, hook) {
+		if strings.Contains(cur.Raw, strconvQuote(hook+" "+e.Arg)) {
 			continue
 		}
 		var err error
 		if cur.IsArray() {
-			js, err = sjson.SetRaw(js, key+".-1", hookEntry(hook+" "+e.Arg, matcher))
+			js, err = sjson.SetRaw(js, key+".-1", hookEntry(hook+" "+e.Arg, matcher, e.Tools))
 		} else {
-			js, err = sjson.SetRaw(js, key, "["+hookEntry(hook+" "+e.Arg, matcher)+"]")
+			js, err = sjson.SetRaw(js, key, "["+hookEntry(hook+" "+e.Arg, matcher, e.Tools)+"]")
 		}
 		if err != nil {
 			return nil, 0, err
@@ -405,3 +411,7 @@ func writeWithBackup(path string, old, js []byte) error {
 	_ = os.Chmod(tmp, mode)
 	return os.Rename(tmp, path)
 }
+
+// strconvQuote is the command as it appears inside the JSON (quoted), so
+// "hook tool" does not match "hook tools".
+func strconvQuote(s string) string { q, _ := json.Marshal(s); return string(q) }
