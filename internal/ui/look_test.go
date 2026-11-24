@@ -22,7 +22,7 @@ func TestAppLook(t *testing.T) {
 	for i := range p.items {
 		keys = append(keys, p.itemKey(i))
 	}
-	if got := strings.Join(keys, " "); got != "a:b1 a:a1 f:"+asleepKey {
+	if got := strings.Join(keys, " "); got != "a:b1 g:/p/api a:a1 f:"+asleepKey {
 		t.Fatalf("items: %q", got)
 	}
 	screen := stripANSI(strings.Join(p.frame(), "\n"))
@@ -30,6 +30,17 @@ func TestAppLook(t *testing.T) {
 		if !strings.Contains(screen, want) {
 			t.Fatalf("missing %q in:\n%s", want, screen)
 		}
+	}
+	// Enter on a project's heading collapses it, and again opens it.
+	p.selectKey("g:/p/api")
+	p.handleKey("enter")
+	if p.selectKey("a:a1") || !p.prefs.Collapsed["/p/api"] {
+		t.Fatalf("collapsed: %v", p.items)
+	}
+	p.selectKey("g:/p/api")
+	p.handleKey("enter")
+	if !p.selectKey("a:a1") {
+		t.Fatalf("opened again: %v", p.items)
 	}
 	// Opening the hibernated group lists its sessions.
 	p.selectKey("f:" + asleepKey)

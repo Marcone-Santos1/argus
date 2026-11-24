@@ -247,7 +247,20 @@ func (p *Panel) appItems(sessions, past []item) []item {
 			rest = append(rest, it)
 		}
 	}
-	out := append(need, rest...)
+	out := need
+	// Each project gets a heading; a collapsed one hides its sessions.
+	for i := 0; i < len(rest); {
+		d := rest[i].dir
+		j := i
+		for j < len(rest) && rest[j].dir == d {
+			j++
+		}
+		out = append(out, item{dir: d, agent: -1, folder: true, header: true, count: j - i})
+		if !p.prefs.Collapsed[d] || p.listFilter != "" {
+			out = append(out, rest[i:j]...)
+		}
+		i = j
+	}
 	if len(asleep) > 0 {
 		if p.expanded[asleepKey] || p.listFilter != "" {
 			out = append(out, asleep...)
@@ -370,6 +383,8 @@ func (p *Panel) viewListApp() []string {
 			case a.Status == status.Waiting:
 				s = "need"
 			}
+		} else if it.header {
+			s = "projects"
 		} else if it.dir == asleepKey {
 			s = "asleep"
 		} else {
@@ -401,13 +416,7 @@ func (p *Panel) viewListApp() []string {
 			mark(-1)
 			sect, group = s, ""
 		}
-		if s == "projects" && it.dir != group {
-			group = it.dir
-			arrow := sp("▾ ", aFaint)
-			body = append(body, lineLR(w, "", []span{sp(" ", ""), arrow, sp(p.folderName(it.dir), "\x1b[1m")},
-				[]span{sp(p.gitText(it.dir), aFaint), sp(" ", "")}))
-			mark(idx)
-		}
+		_ = group
 		if idx == p.sel {
 			focus = len(body)
 		}
@@ -416,6 +425,8 @@ func (p *Panel) viewListApp() []string {
 			body = append(body, p.needCard(a, sel, now, w)...)
 		case it.agent >= 0:
 			body = append(body, p.appRows(a, sel, s == "asleep", now, w)...)
+		case it.header:
+			body = append(body, p.projectHeader(it, sel, now, w))
 		case it.dir == asleepKey:
 			var names []string
 			for _, o := range p.agents {
@@ -572,4 +583,25 @@ func (p *Panel) appPanelTitle() string {
 		t += fmt.Sprintf("  #[fg=#4ade80]● %d", done)
 	}
 	return t + " #[default]"
+}
+
+// projectHeader is a project's heading: ▾ open, ▸ collapsed (with its
+// sessions' states in a row), and the git state on the right.
+func (p *Panel) projectHeader(it item, sel bool, now time.Time, w int) string {
+	collapsed := p.prefs.Collapsed[it.dir] && p.listFilter == ""
+	left := []span{sp(" ", ""), sp("▾ ", aFaint), sp(p.folderName(it.dir), "\x1b[1m")}
+	if collapsed {
+		left[1] = sp("▸ ", aMuted)
+		left = append(left, sp("  ", ""))
+		for _, a := range p.agents {
+			if a.Dir == it.dir && a.Asleep.IsZero() && a.Status != status.Waiting {
+				left = append(left, p.appDot(a, now))
+			}
+		}
+	}
+	right := []span{sp(p.gitText(it.dir), aFaint), sp(" ", "")}
+	if sel {
+		return selCard(w, left[1:], right)
+	}
+	return lineLR(w, "", left, right)
 }

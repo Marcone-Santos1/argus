@@ -369,6 +369,8 @@ type Prefs struct {
 	Names map[string]string `json:"names,omitempty"`
 	// PanelWidth is the list's width in columns, as last dragged (0 = default).
 	PanelWidth int `json:"panel_width,omitempty"`
+	// Collapsed are the projects whose sessions the app look hides.
+	Collapsed map[string]bool `json:"collapsed,omitempty"`
 	// Look is how the list is drawn: "" (classic) or "app".
 	Look string `json:"look,omitempty"`
 	path string
@@ -388,6 +390,9 @@ func LoadPrefs(path string) *Prefs {
 	}
 	if p.Names == nil {
 		p.Names = map[string]string{}
+	}
+	if p.Collapsed == nil {
+		p.Collapsed = map[string]bool{}
 	}
 	return p
 }

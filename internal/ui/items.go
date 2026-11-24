@@ -23,6 +23,7 @@ type item struct {
 	dir    string
 	agent  int  // index in p.agents; -1 = not a session
 	folder bool // a folder row (entry is its newest conversation)
+	header bool // app look: a project's heading over its sessions (folder too)
 	count  int  // folder: how many conversations it has
 	entry  history.Entry
 }
@@ -35,6 +36,8 @@ func (p *Panel) itemKey(i int) string {
 	switch {
 	case it.agent >= 0 && it.agent < len(p.agents):
 		return "a:" + p.agents[it.agent].ID
+	case it.header:
+		return "g:" + it.dir
 	case it.folder:
 		return "f:" + it.dir
 	}
@@ -154,6 +157,20 @@ func (p *Panel) toggleFolder(open *bool) {
 		return
 	}
 	it := p.items[p.sel]
+	if it.header { // a project's sessions: open = not collapsed
+		want := p.prefs.Collapsed[it.dir]
+		if open != nil {
+			want = *open
+		}
+		if want {
+			delete(p.prefs.Collapsed, it.dir)
+		} else {
+			p.prefs.Collapsed[it.dir] = true
+		}
+		_ = p.prefs.Save()
+		p.rebuildItems("g:" + it.dir)
+		return
+	}
 	want := !p.expanded[it.dir]
 	if open != nil {
 		want = *open
