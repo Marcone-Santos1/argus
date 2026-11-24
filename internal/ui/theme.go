@@ -52,7 +52,7 @@ func (p *Panel) syncPaneBg(i int) {
 	want := ""
 	switch {
 	case strings.HasPrefix(p.themeOf(a.Profile), "light"):
-		want = "bg=#ffffff"
+		want = "bg=#ffffff,fg=#1f2328" // the text too: the terminal's own is light
 	case p.appLook():
 		want = "bg=" + aMain
 	}
