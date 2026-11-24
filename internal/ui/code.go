@@ -202,6 +202,11 @@ func (p *Panel) followEdit(id string) {
 		if active, err := tm.Run("display", "-p", "-t", pane, "#{pane_active}"); err == nil && active == "1" {
 			return // you are in the editor: it does not jump under you
 		}
+		// Only into the folder's own daemon: open-file would start one when
+		// missing (an editor opened before this version has none).
+		if out, err := exec.Command("fresh", "--cmd", "daemon", "list").Output(); err != nil || !strings.Contains(string(out), name) {
+			return
+		}
 		_ = exec.Command("fresh", "--cmd", "daemon", "open-file", name, fmt.Sprintf("%s:%d", e.File, e.Line)).Run()
 		ch <- func() { p.lastEdit[id] = e.Key }
 	}()
