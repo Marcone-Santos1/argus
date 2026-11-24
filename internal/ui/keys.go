@@ -255,6 +255,8 @@ func (p *Panel) keyList(k string) {
 		p.mode = modeFilter
 	case "r":
 		p.renameSelected()
+	case "R":
+		p.restartSelected()
 	case "esc":
 		if p.listFilter != "" {
 			p.listFilter = ""

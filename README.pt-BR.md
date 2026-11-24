@@ -67,7 +67,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `w` | nova sessão numa worktree do repositório selecionado |
 | `h` | histórico completo, com busca |
 | `/` | filtra a lista |
-| `r` | renomeia a sessão |
+| `r` | renomeia a sessão (o nome fica com a conversa: volta quando você a reabre pelo histórico) |
+| `R` | reinicia a sessão na mesma conversa, para pegar MCP, skills ou configurações novas |
 | `a` | troca a conta da sessão (ex.: pessoal → trabalho), mantendo a conversa |
 | `y` | responde uma sessão que espera você direto da lista: a pergunta e as opções aparecem embaixo dela |
 | `?` | ajuda: todas as teclas |

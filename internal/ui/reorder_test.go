@@ -3,6 +3,8 @@ package ui
 import (
 	"strings"
 	"testing"
+
+	"github.com/Marcone-Santos1/argus/internal/history"
 )
 
 func TestMoveSession(t *testing.T) {
@@ -55,5 +57,14 @@ func TestMoveSession(t *testing.T) {
 	p.rebuildItems("")
 	if got := order(); got != "a2 a1 a3 c1 b1 d1" {
 		t.Fatalf("new sessions: %s", got)
+	}
+}
+
+func TestRememberedName(t *testing.T) {
+	p := testPanel(t)
+	p.prefs.Names["conv-1"] = "ficar rico"
+	es := p.withRemembered([]history.Entry{{ID: "conv-1", Title: "Simulação"}, {ID: "conv-2", Title: "Outra"}})
+	if es[0].Title != "ficar rico" || es[1].Title != "Outra" {
+		t.Fatalf("titles: %q %q", es[0].Title, es[1].Title)
 	}
 }

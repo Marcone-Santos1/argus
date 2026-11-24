@@ -356,6 +356,9 @@ type Prefs struct {
 	// transcript, so without this a switched conversation would reopen in
 	// its original account.
 	Sessions map[string]string `json:"sessions,omitempty"`
+	// Names maps a conversation id to the name given to it with r, so the
+	// name comes back when it is reopened from the history.
+	Names map[string]string `json:"names,omitempty"`
 	// PanelWidth is the list's width in columns, as last dragged (0 = default).
 	PanelWidth int `json:"panel_width,omitempty"`
 	path       string
@@ -372,6 +375,9 @@ func LoadPrefs(path string) *Prefs {
 	}
 	if p.Sessions == nil {
 		p.Sessions = map[string]string{}
+	}
+	if p.Names == nil {
+		p.Names = map[string]string{}
 	}
 	return p
 }

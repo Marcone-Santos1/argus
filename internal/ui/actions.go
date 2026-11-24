@@ -209,13 +209,22 @@ func (p *Panel) renameSelected() {
 	if a == nil {
 		return
 	}
-	pane, dir := a.Pane, a.Dir
+	pane, dir, conv := a.Pane, a.Dir, a.Session
 	initial := a.Name
 	if autoName(a.Name, a.Dir) {
 		initial = ""
 	}
 	p.ask(i18n.T("msg.renamePrompt"), initial, func(name string) {
 		name = strings.TrimSpace(name)
+		if conv != "" { // remembered for when the conversation is reopened
+			if name == "" {
+				delete(p.prefs.Names, conv)
+			} else {
+				p.prefs.Names[conv] = name
+			}
+			_ = p.prefs.Save()
+			p.refreshRecent()
+		}
 		if name == "" {
 			name = filepath.Base(dir) // empty = back to the profile's text
 		}
@@ -381,6 +390,9 @@ func (p *Panel) setRecent(all []history.Entry) {
 // account the transcript recorded when the conversation started.
 func (p *Panel) withRemembered(es []history.Entry) []history.Entry {
 	for i := range es {
+		if name := p.prefs.Names[es[i].ID]; name != "" {
+			es[i].Title = name
+		}
 		if name, ok := p.prefs.Sessions[es[i].Key()]; ok {
 			if _, exists := p.d.Config.Profile(name); exists {
 				es[i].Profile = name
@@ -552,25 +564,66 @@ func (p *Panel) doSwitch(prof config.Profile) {
 	}
 	target := *a
 	do := func() {
-		cur, _ := p.profileOf(target.Profile)
-		resume := &history.Entry{Tool: cur.Label(), ID: target.Session}
-		env, cmd := p.launch(target.ID, prof, resume)
-		args := append([]string{"respawn-pane", "-k", "-t", target.Pane, "-c", target.Dir}, env...)
-		if _, err := p.d.Tmux.Run(append(args, cmd...)...); err != nil {
-			p.flash(err.Error())
-			return
+		if p.respawn(target, prof) {
+			p.flash(i18n.T("msg.switched", target.Name, prof.Name))
 		}
-		_ = p.d.Tmux.SetPaneOptions(target.Pane, "@argus_profile", prof.Name, "@argus_session", target.Session)
-		p.prefs.Sessions[resume.Key()] = prof.Name
-		_ = p.prefs.Save()
-		_ = os.WriteFile(p.d.Paths.Status(target.ID), []byte(status.Idle+"\n"+target.Session+"\n"), 0o644)
-		p.flash(i18n.T("msg.switched", target.Name, prof.Name))
-		p.reconcile()
-		p.selectKey("a:" + target.ID)
-		p.focusSession()
 	}
 	if target.Status == status.Working || target.Status == status.Waiting {
 		p.confirm(i18n.T("msg.switchActive", target.Name), do)
+		return
+	}
+	do()
+}
+
+// respawn closes the session's agent and resumes the same conversation in
+// its pane, with the given profile.
+func (p *Panel) respawn(target agent, prof config.Profile) bool {
+	cur, _ := p.profileOf(target.Profile)
+	resume := &history.Entry{Tool: cur.Label(), ID: target.Session}
+	env, cmd := p.launch(target.ID, prof, resume)
+	args := append([]string{"respawn-pane", "-k", "-t", target.Pane, "-c", target.Dir}, env...)
+	if _, err := p.d.Tmux.Run(append(args, cmd...)...); err != nil {
+		p.flash(err.Error())
+		return false
+	}
+	_ = p.d.Tmux.SetPaneOptions(target.Pane, "@argus_profile", prof.Name, "@argus_session", target.Session)
+	p.prefs.Sessions[resume.Key()] = prof.Name
+	_ = p.prefs.Save()
+	_ = os.WriteFile(p.d.Paths.Status(target.ID), []byte(status.Idle+"\n"+target.Session+"\n"), 0o644)
+	p.reconcile()
+	p.selectKey("a:" + target.ID)
+	p.focusSession()
+	return true
+}
+
+// restartSelected restarts the session's agent on the same conversation, so
+// it picks up MCP servers, skills or settings added since it started.
+func (p *Panel) restartSelected() {
+	a := p.current()
+	if a == nil {
+		return
+	}
+	if !a.Asleep.IsZero() { // a hibernated session starts fresh when resumed
+		p.focusSession()
+		return
+	}
+	prof, ok := p.profileOf(a.Profile)
+	if !ok {
+		p.flash(i18n.T("msg.noProfile", a.Profile))
+		return
+	}
+	if a.Session == "" || !history.SafeID(a.Session) {
+		p.flash(i18n.T("msg.noSessionID"))
+		return
+	}
+	target := *a
+	do := func() {
+		if p.respawn(target, prof) {
+			p.flash(i18n.T("msg.restarted", p.sessionText(target)))
+		}
+	}
+	if target.Status == status.Working || target.Status == status.Waiting {
+		p.confirm(i18n.T("msg.restartActive", p.sessionText(target)), do)
 		return
 	}
 	do()

@@ -68,7 +68,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `w` | new session in a worktree of the selected repository |
 | `h` | full history, searchable |
 | `/` | filter the list |
-| `r` | rename the session |
+| `r` | rename the session (the name stays with the conversation: it comes back when you reopen it from the history) |
+| `R` | restart the session on the same conversation, to pick up MCP servers, skills or settings added since it started |
 | `a` | switch the session to another account (e.g. personal → work), keeping the conversation |
 | `y` | answer a session waiting for you right from the list: its question and options show under it |
 | `?` | help: every key |
