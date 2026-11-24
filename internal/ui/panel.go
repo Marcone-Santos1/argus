@@ -152,6 +152,7 @@ type Panel struct {
 
 	tabsText      string            // the tabs row (app look)
 	editors       map[string]string // code column: folder -> editor pane
+	rail          bool              // the list folded into a rail (key b)
 	editorPane    string            // the editor shown (in the main window)
 	editorDir     string
 	edW           int

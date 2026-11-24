@@ -84,3 +84,25 @@ func TestTabsLine(t *testing.T) {
 		t.Fatalf("click: %s", p.selKey())
 	}
 }
+
+func TestRail(t *testing.T) {
+	p := testPanel(t)
+	p.w, p.h = railW, 20
+	p.agents = []agent{
+		{ID: "a1", Dir: "/p/api", Name: "Api work", Status: status.Done, Created: 1},
+		{ID: "b1", Dir: "/p/site", Name: "Site fix", Status: status.Waiting, Created: 2},
+	}
+	p.rebuildItems("")
+	p.handleKey("b")
+	if !p.rail {
+		t.Fatal("b folds the list")
+	}
+	screen := stripANSI(strings.Join(p.frame(), "\n"))
+	if strings.Count(screen, "✳") != 2 || strings.Contains(screen, "Api work") {
+		t.Fatalf("rail:\n%s", screen)
+	}
+	p.handleKey("n") // the folder picker needs the full list
+	if p.rail {
+		t.Fatal("a picker opens the list again")
+	}
+}

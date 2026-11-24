@@ -25,7 +25,7 @@ func (p *Panel) applyWidth() {
 // noteWidth remembers a width the user chose (dragging the border, or < >),
 // not the full width of the help screen's zoom.
 func (p *Panel) noteWidth() {
-	if p.w == p.prefs.PanelWidth || p.mode == modeHelp {
+	if p.w == p.prefs.PanelWidth || p.mode == modeHelp || p.rail {
 		return
 	}
 	if out, err := p.d.Tmux.Run("display", "-p", "-t", p.d.Self, "#{window_zoomed_flag}"); err != nil || out == "1" {

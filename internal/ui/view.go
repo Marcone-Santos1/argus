@@ -69,7 +69,9 @@ func (p *Panel) frame() []string {
 	case modeTimeline:
 		lines = p.viewTimeline()
 	default:
-		if p.appLook() {
+		if p.rail && p.mode == modeList {
+			lines = p.viewRail()
+		} else if p.appLook() {
 			lines = p.viewListApp()
 		} else {
 			lines = p.viewList()
@@ -746,6 +748,7 @@ var helpKeys = []struct{ key, msg string }{
 	{"r", "help.rename"},
 	{"R", "help.restart"},
 	{"e", "help.code"},
+	{"b", "help.rail"},
 	{"L", "help.look"},
 	{"a", "help.account"},
 	{"y", "help.answer"},

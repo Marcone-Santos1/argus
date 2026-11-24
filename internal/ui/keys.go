@@ -46,6 +46,9 @@ func (p *Panel) handleKey(k string) {
 	default:
 		p.keyList(k)
 	}
+	if p.rail && p.mode != modeList { // a picker, a question or the help needs the full list
+		p.toggleRail()
+	}
 }
 
 // editText applies an editing key to a text; reports whether the key was used.
@@ -261,6 +264,8 @@ func (p *Panel) keyList(k string) {
 		p.toggleLook()
 	case "e":
 		p.toggleCode()
+	case "b":
+		p.toggleRail()
 	case "esc":
 		if p.listFilter != "" {
 			p.listFilter = ""
