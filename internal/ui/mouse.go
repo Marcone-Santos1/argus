@@ -17,13 +17,21 @@ const (
 
 // applyWidth gives the panel the width it was last dragged to.
 func (p *Panel) applyWidth() {
+	if args := p.widthArgs(); args != nil {
+		_, _ = p.d.Tmux.Run(args...)
+	}
+}
+
+// widthArgs is the tmux command that gives the list its width: the strip's
+// when folded, the one the user chose otherwise (nil: none chosen).
+func (p *Panel) widthArgs() []string {
 	if p.rail { // folded: keep the strip narrow whatever moved beside it
-		_, _ = p.d.Tmux.Run("resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(railW))
-		return
+		return []string{"resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(railW)}
 	}
 	if w := p.prefs.PanelWidth; w >= minPanelW {
-		_, _ = p.d.Tmux.Run("resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(w))
+		return []string{"resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(w)}
 	}
+	return nil
 }
 
 // noteWidth remembers a width the user chose (dragging the border, or < >),

@@ -48,22 +48,34 @@ func (p *Panel) showSelected() bool {
 		return true
 	}
 	p.swapStart = time.Now()
-	args := []string{"swap-pane", "-d", "-s", a.Pane, "-t", p.displayPane}
 	if p.displayPane == "" && p.editorPane != "" { // only the code column is shown: beside it
-		args = []string{"join-pane", "-h", "-d", "-s", a.Pane, "-t", p.editorPane}
+		if _, err := p.d.Tmux.Run("join-pane", "-h", "-d", "-s", a.Pane, "-t", p.editorPane); err != nil {
+			p.flash(err.Error())
+			p.reconcile()
+			return false
+		}
+		p.markDisplayed(a)
+		p.codeFor(a)
+		return true
 	}
+	// The swap and the code column's change go to tmux in one call.
+	args := append([]string{"swap-pane", "-d", "-s", a.Pane, "-t", p.displayPane}, p.codeArgs(a)...)
+	p.markDisplayed(a)
 	if _, err := p.d.Tmux.Run(args...); err != nil {
 		p.flash(err.Error())
 		p.reconcile()
 		return false
 	}
+	return true
+}
+
+// markDisplayed records the session as the one on the right.
+func (p *Panel) markDisplayed(a *agent) {
 	for i := range p.agents {
 		p.agents[i].Displayed = false
 	}
 	a.Displayed = true
 	p.displayPane = a.Pane
-	p.codeFor(a)
-	return true
 }
 
 func (p *Panel) focusSession() {

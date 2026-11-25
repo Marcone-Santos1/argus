@@ -249,7 +249,7 @@ func (p *Panel) Run() error {
 	_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "@argus_role", tmux.RolePanel,
 		";", "set-hook", "-g", "client-closed", "run-shell -b 'echo 1 > "+filepath.Join(p.d.Paths.State, "_detach")+"'")
 	before := paletteMode
-	p.themeCheck(true) // the palette, before the first drawing
+	p.themeCheck(true)                        // the palette, before the first drawing
 	if p.appLook() && paletteMode == before { // a palette change applied it already
 		p.applyLook()
 	}

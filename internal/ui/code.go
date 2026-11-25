@@ -114,6 +114,48 @@ func (p *Panel) codeFor(a *agent) {
 	}
 }
 
+// codeArgs are the tmux commands (each after a ";") that give the session
+// now on the right its code column, or take the column away, recording the
+// result; codeFor's work for a session switch, in the same call as the swap.
+func (p *Panel) codeArgs(a *agent) []string {
+	var cmds [][]string
+	switch {
+	case !p.codeOpen[a.ID]:
+		if p.editorPane == "" {
+			return nil
+		}
+		cmds = append(cmds, []string{"break-pane", "-d", "-s", p.editorPane, "-n", editorWindow(p.editorDir)})
+		p.editorPane, p.editorDir = "", ""
+		if w := p.widthArgs(); w != nil {
+			cmds = append(cmds, w)
+		}
+	case p.editorPane == "":
+		pane, err := p.editorFor(a.Dir)
+		if err != nil {
+			p.flash(err.Error())
+			return nil
+		}
+		cmds = append(cmds, []string{"join-pane", "-h", "-b", "-d", "-l", "50%", "-s", pane, "-t", a.Pane})
+		p.editorPane, p.editorDir = pane, a.Dir
+		if w := p.widthArgs(); w != nil {
+			cmds = append(cmds, w)
+		}
+	case p.editorDir != a.Dir:
+		pane, err := p.editorFor(a.Dir)
+		if err != nil {
+			p.flash(err.Error())
+			return nil
+		}
+		cmds = append(cmds, []string{"swap-pane", "-d", "-s", pane, "-t", p.editorPane})
+		p.editorPane, p.editorDir = pane, a.Dir
+	}
+	var out []string
+	for _, c := range cmds {
+		out = append(append(out, ";"), c...)
+	}
+	return out
+}
+
 // showEditor puts the folder's editor in the code column, in place of the
 // one shown.
 func (p *Panel) showEditor(dir string) {
