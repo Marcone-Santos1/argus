@@ -21,11 +21,18 @@ const (
 	cDone    = "\x1b[38;2;152;195;121m"
 	cEnded   = "\x1b[38;2;224;108;117m"
 	cAmber   = "\x1b[38;2;229;192;123m"
-	bgSel    = "\x1b[48;2;41;50;69m"
-	bgWait   = "\x1b[48;2;58;48;32m"
-	bgSoft   = "\x1b[48;2;34;40;56m"    // the rest of the selected session's group
 	cMuted   = "\x1b[38;2;139;145;156m" // recent folders
 )
+
+// Row backgrounds: the selection, a session waiting for you, the rest of the
+// selected session's group. The theme's set changes them (see setPalette).
+const (
+	classicSel  = "\x1b[48;2;41;50;69m"
+	classicWait = "\x1b[48;2;58;48;32m"
+	classicSoft = "\x1b[48;2;34;40;56m"
+)
+
+var bgSel, bgWait, bgSoft = classicSel, classicWait, classicSoft
 
 // accountHex are the account colors, given to the profiles in config order:
 // one glance at the tag (or the title above a session) says which account it is.

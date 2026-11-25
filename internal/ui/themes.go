@@ -38,11 +38,18 @@ func (p *Panel) openThemes() {
 	p.mode = modeTheme
 }
 
-// previewTheme shows the chosen set in Argus only (the app look).
+// previewTheme shows the chosen set everywhere it will go: Argus (the app
+// look), the editor and, when Claude is on the Argus theme, the sessions.
+// Nothing is saved until ⏎.
 func (p *Panel) previewTheme() {
-	if mode := themeModes[p.themeSel]; p.appLook() && mode != paletteMode {
+	mode := themeModes[p.themeSel]
+	if p.appLook() && mode != paletteMode {
 		setPalette(mode)
 		p.repaint()
+	}
+	p.setFreshTheme(mode)
+	if p.claudeTheme == argusTheme {
+		p.writeArgusTheme(mode)
 	}
 }
 
@@ -50,7 +57,10 @@ func (p *Panel) keyTheme(k string) {
 	switch k {
 	case "esc", "ctrl-C", "q":
 		p.closePicker()
-		p.followTheme() // back to the set in use
+		if p.claudeTheme == argusTheme { // back to the set in use
+			p.writeArgusTheme(p.argusMode())
+		}
+		p.followTheme()
 	case "up", "k":
 		if p.themeSel > 0 {
 			p.themeSel--

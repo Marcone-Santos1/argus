@@ -59,6 +59,12 @@ func bgc(r, g, b int) string { return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b
 
 // setPalette switches the app look's colors to a set: dark, night or light.
 func setPalette(mode string) {
+	bgSel, bgWait, bgSoft = classicSel, classicWait, classicSoft
+	defer func() { // the pickers' rows, on the set's own cards
+		if mode != install.ThemeDark {
+			bgSel, bgWait, bgSoft = aCard, aNeed, aCard
+		}
+	}()
 	paletteMode = mode
 	lightLook = mode == install.ThemeLight
 	if pal, ok := install.Palettes[mode]; ok {
