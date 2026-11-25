@@ -15,13 +15,17 @@ import (
 // shows it in Argus at once; ⏎ applies it to Claude and the editor too, esc
 // goes back to the one in use.
 
-var themeModes = []string{install.ThemeDark, install.ThemeNight, install.ThemeLight}
+var themeModes = install.ThemeModes
 
 // themeSwatch: background, card, Claude, opencode, done, waiting.
-var themeSwatch = map[string][]string{
-	install.ThemeDark:  {"#0f0f11", "#26262b", "#d97757", "#9aa6ff", "#4ade80", "#f5b14c"},
-	install.ThemeNight: {"#282a36", "#44475a", "#ff79c6", "#bd93f9", "#50fa7b", "#ffb86c"},
-	install.ThemeLight: {"#ffffff", "#e4e4e9", "#c4613f", "#4f5bd5", "#15803d", "#b45309"},
+func themeSwatch(mode string) []string {
+	if p, ok := install.Palettes[mode]; ok {
+		return []string{p.Main, p.Line2, p.Claude, p.OC, p.Green, p.Amber}
+	}
+	if mode == install.ThemeLight {
+		return []string{"#ffffff", "#e4e4e9", "#c4613f", "#4f5bd5", "#15803d", "#b45309"}
+	}
+	return []string{"#0f0f11", "#26262b", "#d97757", "#9aa6ff", "#4ade80", "#f5b14c"}
 }
 
 func (p *Panel) openThemes() {
@@ -88,8 +92,8 @@ func (p *Panel) viewThemes() []string {
 	for i, m := range themeModes {
 		bg, bar := rowBar(i == p.themeSel, false)
 		name := i18n.T("theme." + m)
-		row := []span{bar, sp(fmt.Sprintf(" %d  ", i+1), cQuiet), sp(fmt.Sprintf("%-7s", name), "\x1b[1m"), sp(" ", "")}
-		for _, c := range themeSwatch[m] {
+		row := []span{bar, sp(fmt.Sprintf(" %d  ", i+1), cQuiet), sp(fmt.Sprintf("%-10s", name), "\x1b[1m"), sp(" ", "")}
+		for _, c := range themeSwatch(m) {
 			row = append(row, sp("  ", hexBg(c)))
 		}
 		if m == inUse {

@@ -3,6 +3,7 @@ package procs
 import (
 	"os"
 	"testing"
+	"time"
 )
 
 func TestShells(t *testing.T) {
@@ -44,9 +45,12 @@ func TestUsageOfThisProcess(t *testing.T) {
 	if tree := tb.Tree(os.Getppid()); !contains(tree, me) {
 		t.Fatalf("the parent's tree has this process: %v", tree)
 	}
+	// Busy long enough to show: Linux counts CPU in 10 ms ticks.
 	busy := 0
-	for i := 0; i < 3_000_000; i++ {
-		busy += i % 7
+	for end := time.Now().Add(60 * time.Millisecond); time.Now().Before(end); {
+		for i := 0; i < 100_000; i++ {
+			busy += i % 7
+		}
 	}
 	cpu, rss, ok := Usage(me)
 	if !ok || cpu == 0 || rss < 1<<20 {

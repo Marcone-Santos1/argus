@@ -42,8 +42,6 @@ var (
 	claudeThemeDark string
 	//go:embed assets/claude-theme-argus-light.json
 	claudeThemeLight string
-	//go:embed assets/claude-theme-argus-night.json
-	claudeThemeNight string
 )
 
 // Argus's themes for the Fresh editor of the code column, the same colors.
@@ -52,20 +50,31 @@ var (
 	freshThemeDark string
 	//go:embed assets/fresh-theme-argus-light.json
 	freshThemeLight string
-	//go:embed assets/fresh-theme-argus-night.json
-	freshThemeNight string
 )
 
 // FreshThemes are Fresh's theme files, by name (in ~/.config/fresh/themes).
-var FreshThemes = map[string]*string{"argus-dark": &freshThemeDark, "argus-light": &freshThemeLight, "argus-night": &freshThemeNight}
+func FreshThemes() map[string]string {
+	out := map[string]string{"argus-dark": freshThemeDark, "argus-light": freshThemeLight}
+	for mode, p := range Palettes {
+		out["argus-"+mode] = freshFromPalette("argus-"+mode, p)
+	}
+	return out
+}
 
-// The Argus theme's sets (key T cycles them): dark, night (purple and pink
-// on a blue-gray background) and light.
+// The Argus theme's sets (chosen with T). Dark and light are hand-made;
+// the others come from Palettes.
 const (
-	ThemeDark  = "dark"
-	ThemeNight = "night"
-	ThemeLight = "light"
+	ThemeDark      = "dark"
+	ThemeNight     = "night"
+	ThemeSynthwave = "synthwave"
+	ThemePink      = "pink"
+	ThemeVibrant   = "vibrant"
+	ThemeBordo     = "bordo"
+	ThemeLight     = "light"
 )
+
+// ThemeModes are the sets in the order the T window lists them.
+var ThemeModes = []string{ThemeDark, ThemeNight, ThemeSynthwave, ThemePink, ThemeVibrant, ThemeBordo, ThemeLight}
 
 // ClaudeThemeSlug is Argus's theme in Claude Code: one theme, "Argus", whose
 // file the panel rewrites dark or light (key T). Claude reloads a theme file
@@ -77,8 +86,9 @@ func ClaudeTheme(mode string) string {
 	switch mode {
 	case ThemeLight:
 		return claudeThemeLight
-	case ThemeNight:
-		return claudeThemeNight
+	}
+	if p, ok := Palettes[mode]; ok {
+		return claudeFromPalette(p)
 	}
 	return claudeThemeDark
 }
@@ -299,12 +309,12 @@ func Install(p paths.Paths, out io.Writer) error {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			return err
 		}
-		for name, body := range FreshThemes {
-			if err := os.WriteFile(filepath.Join(dir, name+".json"), []byte(*body), 0o644); err != nil {
+		for name, body := range FreshThemes() {
+			if err := os.WriteFile(filepath.Join(dir, name+".json"), []byte(body), 0o644); err != nil {
 				return err
 			}
 		}
-		fmt.Fprintln(out, "themes fresh:     ", dir, "(argus-dark, argus-night, argus-light)")
+		fmt.Fprintln(out, "themes fresh:     ", dir, "(argus-*)")
 	}
 	if len(cfg.ProfilesFor("opencode")) > 0 {
 		dir := p.OpencodePlugins()

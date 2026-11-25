@@ -145,8 +145,10 @@ func (p *Panel) themeIsLight(theme string) bool {
 
 // argusMode is the Argus theme's set chosen with T.
 func (p *Panel) argusMode() string {
-	if m := p.prefs.ThemeMode; m == install.ThemeLight || m == install.ThemeNight {
-		return m
+	for _, m := range install.ThemeModes {
+		if m == p.prefs.ThemeMode {
+			return m
+		}
 	}
 	return install.ThemeDark
 }

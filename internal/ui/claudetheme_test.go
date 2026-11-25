@@ -104,7 +104,7 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 		t.Fatalf("night theme file: %s", data)
 	}
 	p.handleKey("T")
-	p.handleKey("3")
+	p.handleKey("7")
 	if !lightLook {
 		t.Fatal("light after night")
 	}

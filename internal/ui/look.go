@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -60,18 +61,8 @@ func bgc(r, g, b int) string { return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b
 func setPalette(mode string) {
 	paletteMode = mode
 	lightLook = mode == install.ThemeLight
-	if mode == install.ThemeNight { // purple and pink on blue-gray
-		aBg, aMain = "#21222c", "#282a36"
-		aCard, aNeed = bgc(52, 55, 70), bgc(66, 52, 50)
-		aSoft, aMuted, aFaint = fg(220, 220, 228), fg(98, 114, 164), fg(77, 80, 104)
-		aGreen, aAmber, aRed = fg(80, 250, 123), fg(255, 184, 108), fg(255, 85, 85)
-		aClaude, aOC, aBlue = fg(255, 121, 198), fg(189, 147, 249), fg(139, 233, 253)
-		pillRun = bgc(36, 64, 48) + fg(80, 250, 123)
-		pillNd = bgc(84, 62, 44) + fg(255, 184, 108)
-		pillN = bgc(68, 71, 90) + fg(220, 220, 228)
-		hFg, hText, hMuted, hFaint = "#f8f8f2", "#f8f8f2", "#6272a4", "#4d5068"
-		hLine, hLine2, hTab = "#343746", "#44475a", "#343746"
-		hAmber, hGreen, hClaude = "#ffb86c", "#50fa7b", "#ff79c6"
+	if pal, ok := install.Palettes[mode]; ok {
+		paletteFrom(pal)
 		return
 	}
 	if lightLook {
@@ -99,6 +90,29 @@ func setPalette(mode string) {
 	hFg, hText, hMuted, hFaint = "#ececf0", "#d7dae0", "#7d7d87", "#4c4c55"
 	hLine, hLine2, hTab = "#26262b", "#33333a", "#26262b"
 	hAmber, hGreen, hClaude = "#f5b14c", "#4ade80", "#d97757"
+}
+
+// paletteFrom sets the app look's colors from a generated set.
+func paletteFrom(p install.Palette) {
+	e := func(h string, back bool) string {
+		v, _ := strconv.ParseUint(strings.TrimPrefix(h, "#"), 16, 32)
+		r, g, b := int(v>>16), int(v>>8&0xff), int(v&0xff)
+		if back {
+			return bgc(r, g, b)
+		}
+		return fg(r, g, b)
+	}
+	aBg, aMain = p.Bg, p.Main
+	aCard, aNeed = e(p.Card, true), e(p.Need, true)
+	aSoft, aMuted, aFaint = e(p.Soft, false), e(p.Muted, false), e(p.Faint, false)
+	aGreen, aAmber, aRed = e(p.Green, false), e(p.Amber, false), e(p.Red, false)
+	aClaude, aOC, aBlue = e(p.Claude, false), e(p.OC, false), e(p.Blue, false)
+	pillRun = e(install.Mix(p.Main, p.Green, 0.2), true) + aGreen
+	pillNd = e(install.Mix(p.Main, p.Amber, 0.25), true) + aAmber
+	pillN = e(p.Line2, true) + aSoft
+	hFg, hText, hMuted, hFaint = p.Fg, p.Fg, p.Muted, p.Faint
+	hLine, hLine2, hTab = p.Line, p.Line2, p.Line
+	hAmber, hGreen, hClaude = p.Amber, p.Green, p.Claude
 }
 
 // appLook: the app look is the default; L switches to the classic one.

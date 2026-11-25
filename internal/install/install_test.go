@@ -358,3 +358,16 @@ func TestEditHookEntry(t *testing.T) {
 		t.Fatalf("upgrade adds %d", n)
 	}
 }
+
+func TestPaletteThemesAreValid(t *testing.T) {
+	for mode := range Palettes {
+		var c, f map[string]any
+		if err := json.Unmarshal([]byte(ClaudeTheme(mode)), &c); err != nil || c["base"] != "dark" {
+			t.Fatalf("%s claude: %v %v", mode, err, c["base"])
+		}
+		body := FreshThemes()["argus-"+mode]
+		if err := json.Unmarshal([]byte(body), &f); err != nil || f["name"] != "argus-"+mode {
+			t.Fatalf("%s fresh: %v", mode, err)
+		}
+	}
+}
