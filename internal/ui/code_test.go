@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Marcone-Santos1/argus/internal/config"
 	"github.com/Marcone-Santos1/argus/internal/paths"
@@ -103,6 +104,26 @@ command = "sleep 300"
 	}
 	if len(pn.agents) != 2 {
 		t.Fatalf("no agent started: %d", len(pn.agents))
+	}
+	// Quitting the editor (Ctrl+Q) closes the column for good: going away
+	// and back does not start it again.
+	pn.selectKey("a:" + pn.agents[1].ID)
+	pn.showSelected()
+	pn.toggleCode()
+	if got, want := layout(), "panel: editor:"+d2+" agent:"+d2; got != want {
+		t.Fatalf("before the quit:\n got %s\nwant %s", got, want)
+	}
+	if _, err := tc.Run("respawn-pane", "-k", "-t", pn.editors[d2], "true"); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(200 * time.Millisecond)
+	pn.reconcile()
+	pn.selectKey("a:" + pn.agents[0].ID)
+	pn.showSelected()
+	pn.selectKey("a:" + pn.agents[1].ID)
+	pn.showSelected()
+	if got, want := layout(), "panel: agent:"+d2; got != want {
+		t.Fatalf("after the quit, no column again:\n got %s\nwant %s", got, want)
 	}
 }
 

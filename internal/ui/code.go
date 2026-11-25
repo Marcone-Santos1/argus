@@ -378,6 +378,7 @@ func (p *Panel) saveEditors() {
 	if !isFresh(p.d.Config.Editor) || len(p.editors) == 0 {
 		return
 	}
+	p.editorsSaved = true // their panes end now: not a quit, the columns stay wanted
 	for dir := range p.editors {
 		_ = exec.Command("fresh", "--cmd", "daemon", "kill", freshName(dir)).Run()
 	}

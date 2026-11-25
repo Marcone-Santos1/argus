@@ -161,6 +161,7 @@ type Panel struct {
 	claudeTheme   string               // the theme picked last in Claude Code
 	themeSel      int                  // the row chosen in the theme window (T)
 	editOff       int64                // how much of _edit was read
+	editorsSaved  bool                 // the editors were closed for a detach: their end is no quit
 	themeLive     bool                 // the theme window is open: the editor reads its file closely
 	themeTick     int
 	lastEdit      map[string]string // session -> last edit opened in the code column
@@ -398,6 +399,15 @@ func (p *Panel) reconcile() {
 		if pn.Role == tmux.RoleEditor {
 			if pn.Dead { // the editor was quit: gone, the next e starts a new one
 				_, _ = p.d.Tmux.Run("kill-pane", "-t", pn.ID)
+				if !p.editorsSaved {
+					// Quit by you (Ctrl+Q): the folder's sessions no longer
+					// want the column, or it would come back on every visit.
+					for _, a := range p.agents {
+						if a.Dir == pn.Dir {
+							delete(p.codeOpen, a.ID)
+						}
+					}
+				}
 				continue
 			}
 			editors[pn.Dir] = pn.ID
@@ -666,6 +676,7 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 	case name == "_attach":
 		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
 			p.reconcile()
+			p.editorsSaved = false
 			for i := range p.agents {
 				if p.agents[i].Displayed {
 					p.codeFor(&p.agents[i])
