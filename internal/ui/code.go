@@ -288,8 +288,14 @@ func (p *Panel) followEdit(id string) {
 	}
 	name, tm, ch, last := freshName(a.Dir), p.d.Tmux, p.asyncC, p.lastEdit[id]
 	go func() {
-		time.Sleep(300 * time.Millisecond)
-		e, ok := history.LastEdit(path)
+		// The hook runs before Claude writes the edit to the transcript:
+		// look for it a few times.
+		var e history.Edit
+		ok := false
+		for try := 0; try < 10 && (!ok || e.Key == last); try++ {
+			time.Sleep(300 * time.Millisecond)
+			e, ok = history.LastEdit(path)
+		}
 		if !ok || e.Key == last {
 			return
 		}
