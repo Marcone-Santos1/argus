@@ -143,3 +143,19 @@ func TestAppLookIsDefault(t *testing.T) {
 		t.Fatalf("L: %q", p.prefs.Look)
 	}
 }
+
+func TestRailSurvivesLayoutChanges(t *testing.T) {
+	p := testPanel(t)
+	p.prefs.PanelWidth = 40
+	p.rail = true
+	p.w = railW
+	p.noteWidth()
+	if !p.rail {
+		t.Fatal("a narrow strip must stay folded")
+	}
+	p.w = 50
+	p.noteWidth()
+	if p.rail {
+		t.Fatal("a widened strip should open the full list")
+	}
+}

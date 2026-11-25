@@ -17,6 +17,10 @@ const (
 
 // applyWidth gives the panel the width it was last dragged to.
 func (p *Panel) applyWidth() {
+	if p.rail { // folded: keep the strip narrow whatever moved beside it
+		_, _ = p.d.Tmux.Run("resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(railW))
+		return
+	}
 	if w := p.prefs.PanelWidth; w >= minPanelW {
 		_, _ = p.d.Tmux.Run("resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(w))
 	}
@@ -25,6 +29,12 @@ func (p *Panel) applyWidth() {
 // noteWidth remembers a width the user chose (dragging the border, or < >),
 // not the full width of the help screen's zoom.
 func (p *Panel) noteWidth() {
+	if p.rail && p.w >= minPanelW && p.mode == modeList {
+		// Something widened the strip (a drag on the border, tmux giving it
+		// room back): show the full list instead of a stretched strip.
+		p.rail = false
+		p.prevLines = nil
+	}
 	if p.w == p.prefs.PanelWidth || p.mode == modeHelp || p.rail {
 		return
 	}

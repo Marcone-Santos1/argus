@@ -1,7 +1,6 @@
 package ui
 
 import (
-	"strconv"
 	"time"
 
 	"github.com/Marcone-Santos1/argus/internal/status"
@@ -17,11 +16,7 @@ const railW = 6
 
 func (p *Panel) toggleRail() {
 	p.rail = !p.rail
-	if p.rail {
-		_, _ = p.d.Tmux.Run("resize-pane", "-t", p.d.Self, "-x", strconv.Itoa(railW))
-	} else {
-		p.applyWidth()
-	}
+	p.applyWidth()
 	p.prevLines = nil
 }
 
