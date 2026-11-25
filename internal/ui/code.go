@@ -272,21 +272,28 @@ func (p *Panel) followEdit(id string) {
 			a = &p.agents[i]
 		}
 	}
-	if a == nil || p.editorPane == "" || p.editorDir != a.Dir || !isFresh(p.d.Config.Editor) {
+	if a == nil || !isFresh(p.d.Config.Editor) {
+		return
+	}
+	// The folder's editor, shown or not: a hidden one opens the file too, so
+	// the column shows the latest change when it comes back.
+	pane, open := p.editors[a.Dir]
+	if !open {
 		return
 	}
 	path := p.transcriptOf(*a)
 	if path == "" {
 		return
 	}
-	pane, name, tm, ch, last := p.editorPane, freshName(a.Dir), p.d.Tmux, p.asyncC, p.lastEdit[id]
+	name, tm, ch, last := freshName(a.Dir), p.d.Tmux, p.asyncC, p.lastEdit[id]
 	go func() {
 		time.Sleep(300 * time.Millisecond)
 		e, ok := history.LastEdit(path)
 		if !ok || e.Key == last {
 			return
 		}
-		if active, err := tm.Run("display", "-p", "-t", pane, "#{pane_active}"); err == nil && active == "1" {
+		// Shown and focused (a hidden editor is alone, so active, in its window).
+		if active, err := tm.Run("display", "-p", "-t", pane, "#{?#{==:#{window_name},"+tmux.MainWindow+"},#{pane_active},0}"); err == nil && active == "1" {
 			return // you are in the editor: it does not jump under you
 		}
 		// Only into the folder's own daemon: open-file would start one when
