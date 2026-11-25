@@ -320,7 +320,7 @@ func (p *Panel) usageGroups(now time.Time) [][][]span {
 			gs = append(gs, append(g, sp(fmt.Sprintf(" %2.0f%%", pct), color), sp(left, leftStyle)))
 		}
 		add("5h", in.FiveHour, 5*time.Hour, 6)
-		add("7d", in.SevenDay, 7*24*time.Hour, 5)
+		add("7d", in.SevenDay, 7*24*time.Hour, 6) // same size as 5h, so wrapped lines line up
 		if len(gs) > 0 {
 			gs[0] = append([]span{sp(pr.Tag()+" ", p.accountColor(pr.Name))}, gs[0]...)
 			out = append(out, gs)

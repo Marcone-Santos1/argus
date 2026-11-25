@@ -800,7 +800,20 @@ func (p *Panel) viewHelp() []string {
 func (p *Panel) statsLines(w int) []string {
 	var out []string
 	for _, acc := range p.usageGroups(time.Now()) {
-		out = append(out, wrapGroups(acc, w)...)
+		lines := wrapGroups(acc, w)
+		if len(lines) > 1 && len(acc) > 1 && len(acc[0]) > 0 {
+			// One window per line, 7d under 5h: the account's tag only on
+			// the first, its width as indent on the others.
+			indent := sp(strings.Repeat(" ", width(acc[0][0].text)), "")
+			lines = nil
+			for i, g := range acc {
+				if i > 0 {
+					g = append([]span{indent}, g...)
+				}
+				lines = append(lines, wrapGroups([][]span{g}, w)...)
+			}
+		}
+		out = append(out, lines...)
 	}
 	return append(out, wrapGroups(p.machineGroups(), w)...)
 }
