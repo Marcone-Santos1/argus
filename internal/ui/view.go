@@ -26,7 +26,7 @@ const (
 
 func (p *Panel) resize() {
 	w, h, err := term.GetSize(int(os.Stdout.Fd()))
-	if err != nil || w < 10 || h < 4 {
+	if err != nil || w < 1 || h < 4 { // the strip is 6 wide: only a failed read is replaced
 		w, h = 40, 20
 	}
 	p.w, p.h = w, h
