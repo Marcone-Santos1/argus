@@ -158,4 +158,9 @@ func TestRailSurvivesLayoutChanges(t *testing.T) {
 	if p.rail {
 		t.Fatal("a widened strip should open the full list")
 	}
+	p.w = 8
+	p.noteWidth()
+	if !p.rail {
+		t.Fatal("a list too narrow to read should fold into the strip")
+	}
 }

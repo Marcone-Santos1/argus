@@ -35,6 +35,12 @@ func (p *Panel) noteWidth() {
 		p.rail = false
 		p.prevLines = nil
 	}
+	if !p.rail && p.w < minPanelW && p.mode == modeList {
+		// Too narrow for the list (dragged thin, or folded before a
+		// restart): draw the strip instead of a cut-off list.
+		p.rail = true
+		p.prevLines = nil
+	}
 	if p.w == p.prefs.PanelWidth || p.mode == modeHelp || p.rail {
 		return
 	}

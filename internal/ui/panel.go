@@ -278,6 +278,7 @@ func (p *Panel) Run() error {
 	defer ticker.Stop()
 
 	p.resize()
+	p.rail = p.w < minPanelW // a restarted panel keeps the strip it was folded into
 	p.oc = status.ReadOpencode(p.d.Paths.Opencode())
 	p.loadUsage()
 	p.reconcile()
