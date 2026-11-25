@@ -86,6 +86,9 @@ type Config struct {
 	Roots       []string `toml:"roots"`
 	Depth       int      `toml:"depth"`
 	MaxSessions int      `toml:"max_sessions"`
+	// StormRate is the processes/min that, sustained, raises the footer's
+	// alarm (0: the default, 2000; -1: never).
+	StormRate int `toml:"storm_rate"`
 	// HibernateAfter closes a finished session's process after this long
 	// without use ("2h"); it resumes on Enter. "0" turns it off.
 	HibernateAfter string `toml:"hibernate_after"`

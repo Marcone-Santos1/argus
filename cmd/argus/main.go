@@ -90,9 +90,11 @@ func runPanel(p paths.Paths, t *tmux.Client) error {
 	if err != nil {
 		return err
 	}
+	mon := sysmon.New()
+	mon.StormRate = float64(cfg.StormRate)
 	return ui.New(ui.Deps{
 		Paths: p, Config: cfg, Tmux: t, Self: os.Getenv("TMUX_PANE"),
-		Notify: notify.Send, Monitor: sysmon.New(), Started: started,
+		Notify: notify.Send, Monitor: mon, Started: started,
 	}).Run()
 }
 

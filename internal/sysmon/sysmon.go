@@ -53,6 +53,9 @@ type Monitor struct {
 	Probe       func() int       // returns a fresh PID; replaceable in tests
 	DiskPath    string           // volume whose free space is measured (home)
 	Now         func() time.Time // replaceable in tests
+	// StormRate overrides the alarm's rate (processes/min); negative turns
+	// the alarm off, zero keeps the default.
+	StormRate float64
 }
 
 // New creates a monitor with the best PID source for this OS.
@@ -111,7 +114,11 @@ func (m *Monitor) Sample() Reading {
 			m.samples = m.samples[len(m.samples)-1:] // PIDs wrapped around
 		}
 	}
-	if r.PerMinute >= StormRate {
+	rate := float64(StormRate)
+	if m.StormRate != 0 {
+		rate = m.StormRate
+	}
+	if m.StormRate >= 0 && r.PerMinute >= rate {
 		if m.stormStart.IsZero() {
 			m.stormStart = now
 		}

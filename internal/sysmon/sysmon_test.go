@@ -108,3 +108,22 @@ func TestDiskReading(t *testing.T) {
 		t.Fatalf("disk: free=%d total=%d", r.DiskFree, r.DiskTotal)
 	}
 }
+
+func TestStormRateSetting(t *testing.T) {
+	for _, c := range []struct {
+		rate float64
+		want bool
+	}{{0, true}, {-1, false}, {100000, false}} {
+		pid, now := 1000, time.Unix(0, 0)
+		m := &Monitor{Probe: func() int { return pid }, Now: func() time.Time { return now }, StormRate: c.rate}
+		var r Reading
+		for i := 0; i < 40; i++ {
+			pid += 100 // 100 processes every 2 s: 3000/min
+			now = now.Add(2 * time.Second)
+			r = m.Sample()
+		}
+		if r.Storm != c.want {
+			t.Fatalf("rate %v: storm %v, want %v", c.rate, r.Storm, c.want)
+		}
+	}
+}
