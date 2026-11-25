@@ -36,6 +36,8 @@ func (p *Panel) openThemes() {
 		}
 	}
 	p.mode = modeTheme
+	p.themeLive = true
+	p.setFreshTheme(p.themeMode()) // the editor starts following closely
 }
 
 // previewTheme shows the chosen set everywhere it will go: Argus (the app
@@ -57,6 +59,7 @@ func (p *Panel) keyTheme(k string) {
 	switch k {
 	case "esc", "ctrl-C", "q":
 		p.closePicker()
+		p.themeLive = false
 		if p.claudeTheme == argusTheme { // back to the set in use
 			p.writeArgusTheme(p.argusMode())
 		}
@@ -73,6 +76,7 @@ func (p *Panel) keyTheme(k string) {
 		}
 	case "enter":
 		p.closePicker()
+		p.themeLive = false
 		p.setArgusTheme(themeModes[p.themeSel])
 	default:
 		if n, err := strconv.Atoi(k); err == nil && n >= 1 && n <= len(themeModes) {

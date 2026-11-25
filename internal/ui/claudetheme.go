@@ -207,10 +207,15 @@ func (p *Panel) setFreshTheme(mode string) {
 		return // a theme of the user's own: left alone
 	}
 	// The open editors: Argus's Fresh plugin applies what this file names.
+	// While the theme window is open, "live" asks it to look every 50 ms.
 	sig := filepath.Join(dir, install.FreshThemeFile)
-	if old, err := os.ReadFile(sig); err != nil || strings.TrimSpace(string(old)) != want {
+	body := want + "\n"
+	if p.themeLive {
+		body += "live\n"
+	}
+	if old, err := os.ReadFile(sig); err != nil || string(old) != body {
 		_ = os.MkdirAll(dir, 0o755)
-		_ = os.WriteFile(sig, []byte(want+"\n"), 0o644)
+		_ = os.WriteFile(sig, []byte(body), 0o644)
 	}
 	// The editors started later.
 	if cur == want {

@@ -160,6 +160,7 @@ type Panel struct {
 	themeFiles    map[string]themeFile // Claude settings file -> its theme, as last seen
 	claudeTheme   string               // the theme picked last in Claude Code
 	themeSel      int                  // the row chosen in the theme window (T)
+	themeLive     bool                 // the theme window is open: the editor reads its file closely
 	themeTick     int
 	lastEdit      map[string]string // session -> last edit opened in the code column
 	edW           int
