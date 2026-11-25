@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -141,5 +142,32 @@ func TestSnapshotKeepsCodeColumn(t *testing.T) {
 	s := p.snapshot()
 	if !s[0].Code || s[1].Code {
 		t.Fatalf("snapshot: %+v", s)
+	}
+}
+
+func TestReadEditsSeesEveryAppend(t *testing.T) {
+	p := testPanel(t)
+	f := filepath.Join(t.TempDir(), "_edit")
+	add := func(s string) {
+		fh, _ := os.OpenFile(f, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+		fh.WriteString(s)
+		fh.Close()
+	}
+	add("a1\nb2\na1\n")
+	if got := p.readEdits(f); strings.Join(got, ",") != "a1,b2" {
+		t.Fatalf("first read: %v", got)
+	}
+	add("c3\nd4") // the last line is still being written
+	if got := p.readEdits(f); strings.Join(got, ",") != "c3" {
+		t.Fatalf("second read: %v", got)
+	}
+	add("\n")
+	if got := p.readEdits(f); strings.Join(got, ",") != "d4" {
+		t.Fatalf("third read: %v", got)
+	}
+	os.Truncate(f, 0)
+	add("e5\n")
+	if got := p.readEdits(f); strings.Join(got, ",") != "e5" {
+		t.Fatalf("after emptying: %v", got)
 	}
 }

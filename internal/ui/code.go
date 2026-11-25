@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"bytes"
 	"crypto/sha1"
 	"fmt"
 	"os"
@@ -304,6 +305,44 @@ func (p *Panel) followEdit(id string) {
 		_ = exec.Command("fresh", "--cmd", "daemon", "open-file", name, fmt.Sprintf("%s:%d", e.File, e.Line)).Run()
 		ch <- func() { p.lastEdit[id] = e.Key }
 	}()
+}
+
+// readEdits returns the sessions that edited a file since the last read:
+// the hook appends one id per edit to _edit (a rewrite could be read half
+// written, or two edits close together seen as one). The file is emptied
+// once it grows past a few KB.
+func (p *Panel) readEdits(path string) []string {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil
+	}
+	if fi.Size() < p.editOff { // emptied
+		p.editOff = 0
+	}
+	buf := make([]byte, fi.Size()-p.editOff)
+	n, _ := f.ReadAt(buf, p.editOff)
+	buf = buf[:n]
+	end := bytes.LastIndexByte(buf, '\n') + 1 // whole lines only
+	p.editOff += int64(end)
+	var ids []string
+	seen := map[string]bool{}
+	for _, l := range strings.Split(string(buf[:end]), "\n") {
+		if l = strings.TrimSpace(l); l != "" && !seen[l] {
+			seen[l] = true
+			ids = append(ids, l)
+		}
+	}
+	if p.editOff > 4096 && p.editOff == fi.Size() {
+		if os.Truncate(path, 0) == nil {
+			p.editOff = 0
+		}
+	}
+	return ids
 }
 
 // transcriptOf is a Claude session's transcript ("" when unknown).

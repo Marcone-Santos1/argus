@@ -160,6 +160,7 @@ type Panel struct {
 	themeFiles    map[string]themeFile // Claude settings file -> its theme, as last seen
 	claudeTheme   string               // the theme picked last in Claude Code
 	themeSel      int                  // the row chosen in the theme window (T)
+	editOff       int64                // how much of _edit was read
 	themeLive     bool                 // the theme window is open: the editor reads its file closely
 	themeTick     int
 	lastEdit      map[string]string // session -> last edit opened in the code column
@@ -249,6 +250,9 @@ func (p *Panel) Run() error {
 	// tmux.conf (so it goes last: an error there leaves the role set).
 	_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "@argus_role", tmux.RolePanel,
 		";", "set-hook", "-g", "client-closed", "run-shell -b 'echo 1 > "+filepath.Join(p.d.Paths.State, "_detach")+"'")
+	if fi, err := os.Stat(filepath.Join(p.d.Paths.State, "_edit")); err == nil {
+		p.editOff = fi.Size() // edits from before this panel are old news
+	}
 	before := paletteMode
 	p.themeCheck(true)                        // the palette, before the first drawing
 	if p.appLook() && paletteMode == before { // a palette change applied it already
@@ -670,8 +674,8 @@ func (p *Panel) handleFS(ev fsnotify.Event) {
 		}
 	case name == "_edit":
 		if ev.Op&(fsnotify.Write|fsnotify.Create) != 0 {
-			if data, err := os.ReadFile(ev.Name); err == nil {
-				p.followEdit(strings.TrimSpace(string(data)))
+			for _, id := range p.readEdits(ev.Name) {
+				p.followEdit(id)
 			}
 		}
 	case name == "_tab":
