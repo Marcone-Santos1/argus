@@ -242,6 +242,9 @@ func (p *Panel) Run() error {
 		}
 	}
 	_ = p.d.Tmux.SetPaneOptions(p.d.Self, "@argus_role", tmux.RolePanel)
+	// A closed terminal: client-detached covers it on older tmux, which
+	// lacks this hook and would reject it in tmux.conf.
+	_, _ = p.d.Tmux.Run("set-hook", "-g", "client-closed", "run-shell -b 'echo 1 > "+filepath.Join(p.d.Paths.State, "_detach")+"'")
 	p.themeCheck(true) // the palette, before the first drawing
 	if p.appLook() {
 		p.applyLook()
