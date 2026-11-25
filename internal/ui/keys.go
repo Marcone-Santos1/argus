@@ -29,6 +29,8 @@ func (p *Panel) handleKey(k string) {
 		p.keyAnswer(k)
 	case modeTemplates:
 		p.keyTemplates(k)
+	case modeTheme:
+		p.keyTheme(k)
 	case modeHelp, modeTimeline:
 		p.closePicker() // any key closes the help (and leaves the zoom)
 	case modeOverview:
@@ -273,7 +275,7 @@ func (p *Panel) keyList(k string) {
 	case "L":
 		p.toggleLook()
 	case "T":
-		p.toggleTheme()
+		p.openThemes()
 	case "e":
 		p.toggleCode()
 	case "b":

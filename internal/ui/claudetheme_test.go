@@ -73,6 +73,7 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	// T turns it dark: the theme file changes (Claude reloads it live), the
 	// accounts stay on it.
 	p.handleKey("T")
+	p.handleKey("1")
 	for _, f := range []string{pes, emp} {
 		data, _ := os.ReadFile(f)
 		if gjson.GetBytes(data, "theme").String() != "custom:argus" {
@@ -84,6 +85,17 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	}
 	// Then night, purple on blue-gray, in Argus, Claude and the editor.
 	p.handleKey("T")
+	p.handleKey("down") // a preview, in Argus only
+	if paletteMode != install.ThemeNight || argus(".claude") != "dark" {
+		t.Fatalf("preview: %q %q", paletteMode, argus(".claude"))
+	}
+	p.handleKey("esc")
+	if paletteMode != install.ThemeDark {
+		t.Fatalf("esc goes back: %q", paletteMode)
+	}
+	p.handleKey("T")
+	p.handleKey("down")
+	p.handleKey("enter")
 	fresh, _ = os.ReadFile(filepath.Join(home, ".config", "fresh", "config.json"))
 	if paletteMode != install.ThemeNight || argus(".claude") != "dark" || gjson.GetBytes(fresh, "theme").String() != "argus-night" {
 		t.Fatalf("night after T: %q %s", paletteMode, fresh)
@@ -92,6 +104,7 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 		t.Fatalf("night theme file: %s", data)
 	}
 	p.handleKey("T")
+	p.handleKey("3")
 	if !lightLook {
 		t.Fatal("light after night")
 	}

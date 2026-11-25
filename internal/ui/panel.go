@@ -68,6 +68,7 @@ const (
 	modeTemplates
 	modeOverview
 	modeTimeline
+	modeTheme
 )
 
 // Panel is the panel state.
@@ -158,6 +159,7 @@ type Panel struct {
 	codeOpen      map[string]bool      // sessions whose code column is open
 	themeFiles    map[string]themeFile // Claude settings file -> its theme, as last seen
 	claudeTheme   string               // the theme picked last in Claude Code
+	themeSel      int                  // the row chosen in the theme window (T)
 	themeTick     int
 	lastEdit      map[string]string // session -> last edit opened in the code column
 	edW           int

@@ -151,6 +151,12 @@ func (p *Panel) handleMouse(k string) {
 		if double {
 			p.pickTemplate(target)
 		}
+	case modeTheme:
+		p.themeSel = target
+		p.previewTheme()
+		if double {
+			p.keyTheme("enter")
+		}
 	}
 }
 
@@ -192,6 +198,8 @@ func (p *Panel) wheel(dir string) {
 		p.keyPickProfile(dir)
 	case modeTemplates:
 		p.keyTemplates(dir)
+	case modeTheme:
+		p.keyTheme(dir)
 	}
 }
 

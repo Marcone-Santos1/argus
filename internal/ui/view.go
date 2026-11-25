@@ -64,6 +64,8 @@ func (p *Panel) frame() []string {
 		lines = p.viewHelp()
 	case modeTemplates:
 		lines = p.viewTemplates()
+	case modeTheme:
+		lines = p.viewThemes()
 	case modeOverview:
 		lines = p.viewOverview()
 	case modeTimeline:

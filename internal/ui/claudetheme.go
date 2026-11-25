@@ -173,6 +173,11 @@ func (p *Panel) followTheme() {
 		return
 	}
 	setPalette(mode)
+	p.repaint()
+}
+
+// repaint redraws everything after the palette changed.
+func (p *Panel) repaint() {
 	p.prevLines = nil
 	p.tabsText = ""
 	p.titles = map[string]string{}
@@ -231,10 +236,9 @@ func (p *Panel) writeArgusTheme(mode string) {
 	}
 }
 
-// toggleTheme moves the Argus theme to its next set, dark → night → light
-// (key T), in Argus and in every Claude session using it, with no restart.
-func (p *Panel) toggleTheme() {
-	mode := map[string]string{install.ThemeDark: install.ThemeNight, install.ThemeNight: install.ThemeLight, install.ThemeLight: install.ThemeDark}[p.argusMode()]
+// setArgusTheme puts the Argus theme on a set (picked in the T window), in
+// Argus and in every Claude session using it, with no restart.
+func (p *Panel) setArgusTheme(mode string) {
 	p.prefs.ThemeMode = mode
 	if mode == install.ThemeDark {
 		p.prefs.ThemeMode = ""
