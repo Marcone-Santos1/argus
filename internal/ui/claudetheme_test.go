@@ -103,6 +103,9 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	if data, _ := os.ReadFile(filepath.Join(home, ".claude", "themes", "argus.json")); gjson.GetBytes(data, "overrides.claude").String() != "#ff79c6" {
 		t.Fatalf("night theme file: %s", data)
 	}
+	if live, _ := os.ReadFile(filepath.Join(home, ".config", "fresh", "argus-theme")); string(live) != "argus-night\n" {
+		t.Fatalf("open editors: %q", live)
+	}
 	p.handleKey("T")
 	p.handleKey("7")
 	if !lightLook {

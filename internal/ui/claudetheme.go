@@ -189,11 +189,12 @@ func (p *Panel) repaint() {
 }
 
 // setFreshTheme picks Argus's Fresh theme for the look (only when the
-// editor uses one of Argus's themes, or none). Open editors take it when
-// they start again.
+// editor uses one of Argus's themes, or none): open editors through the
+// plugin's file, new ones through config.json.
 func (p *Panel) setFreshTheme(mode string) {
 	want := "argus-" + mode
-	path := filepath.Join(p.d.Paths.Home, ".config", "fresh", "config.json")
+	dir := filepath.Join(p.d.Paths.Home, ".config", "fresh")
+	path := filepath.Join(dir, "config.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
@@ -201,8 +202,18 @@ func (p *Panel) setFreshTheme(mode string) {
 		}
 		data = []byte("{}")
 	}
-	cur := gjson.GetBytes(data, "theme").String()
-	if cur == want || (cur != "" && !strings.HasPrefix(cur, "argus")) {
+	cur := strings.TrimSuffix(gjson.GetBytes(data, "theme").String(), ".json")
+	if cur != "" && !strings.HasPrefix(cur, "argus") {
+		return // a theme of the user's own: left alone
+	}
+	// The open editors: Argus's Fresh plugin applies what this file names.
+	sig := filepath.Join(dir, install.FreshThemeFile)
+	if old, err := os.ReadFile(sig); err != nil || strings.TrimSpace(string(old)) != want {
+		_ = os.MkdirAll(dir, 0o755)
+		_ = os.WriteFile(sig, []byte(want+"\n"), 0o644)
+	}
+	// The editors started later.
+	if cur == want {
 		return
 	}
 	var v map[string]any
@@ -213,7 +224,6 @@ func (p *Panel) setFreshTheme(mode string) {
 	if err != nil {
 		return
 	}
-	_ = os.MkdirAll(filepath.Dir(path), 0o755)
 	_ = os.WriteFile(path, out, 0o644)
 }
 

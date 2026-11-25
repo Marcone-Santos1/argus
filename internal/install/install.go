@@ -52,6 +52,18 @@ var (
 	freshThemeLight string
 )
 
+// FreshPlugin makes Fresh take the theme chosen in Argus at once: it applies
+// the name Argus writes to FreshThemeFile (in Fresh's config folder).
+//
+//go:embed assets/fresh-plugin-argus-theme.ts
+var FreshPlugin string
+
+// FreshThemeFile holds the Fresh theme Argus wants, read by FreshPlugin.
+const FreshThemeFile = "argus-theme"
+
+// FreshPluginFile is the plugin's name in Fresh's plugins folder.
+const FreshPluginFile = "argus-theme.ts"
+
 // FreshThemes are Fresh's theme files, by name (in ~/.config/fresh/themes).
 func FreshThemes() map[string]string {
 	out := map[string]string{"argus-dark": freshThemeDark, "argus-light": freshThemeLight}
@@ -315,6 +327,14 @@ func Install(p paths.Paths, out io.Writer) error {
 			}
 		}
 		fmt.Fprintln(out, "themes fresh:     ", dir, "(argus-*)")
+		plugDir := filepath.Join(p.Home, ".config", "fresh", "plugins")
+		if err := os.MkdirAll(plugDir, 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(plugDir, FreshPluginFile), []byte(FreshPlugin), 0o644); err != nil {
+			return err
+		}
+		fmt.Fprintln(out, "plugin fresh:     ", filepath.Join(plugDir, FreshPluginFile))
 	}
 	if len(cfg.ProfilesFor("opencode")) > 0 {
 		dir := p.OpencodePlugins()
@@ -367,6 +387,8 @@ func Uninstall(p paths.Paths, out io.Writer) error {
 			}
 		}
 	}
+	_ = os.Remove(filepath.Join(p.Home, ".config", "fresh", "plugins", FreshPluginFile))
+	_ = os.Remove(filepath.Join(p.Home, ".config", "fresh", FreshThemeFile))
 	plugin := filepath.Join(p.OpencodePlugins(), PluginFile)
 	if err := os.Remove(plugin); err == nil {
 		fmt.Fprintln(out, i18n.T("install.removed"), plugin)
