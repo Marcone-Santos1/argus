@@ -243,12 +243,14 @@ func (p *Panel) Run() error {
 			return err
 		}
 	}
-	_ = p.d.Tmux.SetPaneOptions(p.d.Self, "@argus_role", tmux.RolePanel)
-	// A closed terminal: client-detached covers it on older tmux, which
-	// lacks this hook and would reject it in tmux.conf.
-	_, _ = p.d.Tmux.Run("set-hook", "-g", "client-closed", "run-shell -b 'echo 1 > "+filepath.Join(p.d.Paths.State, "_detach")+"'")
+	// The pane's role, and the hook for a closed terminal: client-detached
+	// covers it on older tmux, which lacks this hook and would reject it in
+	// tmux.conf (so it goes last: an error there leaves the role set).
+	_, _ = p.d.Tmux.Run("set", "-p", "-t", p.d.Self, "@argus_role", tmux.RolePanel,
+		";", "set-hook", "-g", "client-closed", "run-shell -b 'echo 1 > "+filepath.Join(p.d.Paths.State, "_detach")+"'")
+	before := paletteMode
 	p.themeCheck(true) // the palette, before the first drawing
-	if p.appLook() {
+	if p.appLook() && paletteMode == before { // a palette change applied it already
 		p.applyLook()
 	}
 
@@ -482,9 +484,7 @@ func (p *Panel) reconcile() {
 	if fresh {
 		p.checkShells()
 	}
-	for i := range p.agents {
-		p.syncTitle(i)
-	}
+	p.syncTitles()
 	p.saveSnapshot()
 	for id := range p.lastState {
 		if !live[id] {
@@ -707,6 +707,47 @@ func (p *Panel) saveMetrics() {
 // syncTitle keeps the title tmux draws above a session up to date. It costs
 // one tmux call, and only when the text actually changes.
 func (p *Panel) syncTitle(i int) {
+	if title, ok := p.titleFor(i); ok {
+		if err := p.d.Tmux.SetPaneOptions(p.agents[i].Pane, "@argus_title", title); err == nil {
+			p.titles[p.agents[i].Pane] = title
+		}
+	}
+}
+
+// syncTitles updates every session's title that changed, in one tmux call
+// (one per session cost ~6 ms each when the panel opens).
+func (p *Panel) syncTitles() {
+	var kv []string
+	for i := range p.agents {
+		if title, ok := p.titleFor(i); ok {
+			kv = append(kv, p.agents[i].Pane, title)
+		}
+	}
+	if len(kv) == 0 {
+		return
+	}
+	var args []string
+	for j := 0; j < len(kv); j += 2 {
+		if len(args) > 0 {
+			args = append(args, ";")
+		}
+		args = append(args, "set", "-p", "-t", kv[j], "@argus_title", kv[j+1])
+	}
+	if _, err := p.d.Tmux.Run(args...); err != nil {
+		// A pane went away between the listing and now: one by one.
+		for i := range p.agents {
+			p.syncTitle(i)
+		}
+		return
+	}
+	for j := 0; j < len(kv); j += 2 {
+		p.titles[kv[j]] = kv[j+1]
+	}
+}
+
+// titleFor is the title for a session's pane; ok is false when tmux already
+// shows it.
+func (p *Panel) titleFor(i int) (string, bool) {
 	a := p.agents[i]
 	icon, color, word := statusStyle(a.Status)
 	if p.shells[a.ID] > 0 {
@@ -733,10 +774,5 @@ func (p *Panel) syncTitle(i int) {
 		}
 		title += fmt.Sprintf("#[fg="+hMuted+"]· 5h #[fg=%s]%.0f%% ", tmuxColor(c), in.FiveHour.Percent)
 	}
-	if p.titles[a.Pane] == title {
-		return
-	}
-	if err := p.d.Tmux.SetPaneOptions(a.Pane, "@argus_title", title); err == nil {
-		p.titles[a.Pane] = title
-	}
+	return title, p.titles[a.Pane] != title
 }

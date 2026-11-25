@@ -385,9 +385,7 @@ func (p *Panel) setRecent(all []history.Entry) {
 		}
 	}
 	p.rebuildItems(key)
-	for i := range p.agents {
-		p.syncTitle(i)
-	}
+	p.syncTitles()
 }
 
 // withRemembered applies the profile each conversation was last opened with
