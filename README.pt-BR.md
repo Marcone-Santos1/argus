@@ -2,129 +2,154 @@
 
 [English](README.md) · **Português**
 
-Painel de terminal para rodar várias sessões de [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Gemini CLI](https://github.com/google-gemini/gemini-cli) e Codex em paralelo, lado a lado, sobre o tmux.
+**Um painel de terminal para quem roda várias sessões de agentes de código ao mesmo tempo.** Cada sessão é o [Claude Code](https://claude.com/claude-code), [opencode](https://opencode.ai), [Gemini CLI](https://github.com/google-gemini/gemini-cli) ou Codex de verdade, no tmux. O Argus fica à esquerda e mostra qual sessão precisa de você, quanto resta do limite de cada conta, e traz a sessão certa com uma tecla.
 
-```
-┌ argus ───────────────────────────┬──────────────────────────────────┐
-│ api  ~/Projects                  │ > corrige o teste de upload      │
-│  1 ▶ claude pes          ● 2m    │                                  │
-│  2   opencode oc         ◐ 40s   │ ⏺ Vou rodar os testes primeiro.  │
-│      Ajustar upload     pes  1d  │   ✓ 42 passed  ✗ 1 failed        │
-│                                  │                                  │
-│ site  ~/Projects/Code            │ > █                              │
-│  3   claude emp ⑂        ✓ 12m   │                                  │
-├──────────────────────────────────┤                                  │
-│ CPU 16%  proc/min 60  3 sessões  │                                  │
-└──────────────────────────────────┴──────────────────────────────────┘
-```
+![Argus: sessões à esquerda, a escolhida à direita](docs/demo.gif)
 
-- **Cada sessão é o próprio CLI** num terminal de verdade: memória, MCPs, skills, hooks e permissões continuam iguais.
-- **As sessões abertas vêm primeiro**, com o título da conversa e a cor da conta, e o status de cada uma: ● trabalhando, ◐ esperando você, ✓ terminou. Quando o status muda, chega um aviso do macOS.
-- **Conversas antigas** do Claude Code e do opencode ficam agrupadas por pasta abaixo delas: Enter (ou →) abre a pasta, Enter numa conversa a retoma. O histórico (h) busca pelo título enquanto você digita e, logo depois, no texto de todas as conversas (marcadas com ≈).
-- **Embaixo de cada sessão**: conta, pasta, branch do git com arquivos alterados e commits não enviados, quanto do contexto está ocupado e, quando ela termina, a primeira linha da última resposta do Claude. O rodapé mostra o uso de 5 horas e de 7 dias de cada conta do Claude, lido da status line do Claude Code (o Argus instala uma que não imprime nada; se você já tiver a sua, ela é mantida).
-- **Vários perfis**, por exemplo duas contas do Claude (`CLAUDE_CONFIG_DIR`) e o opencode.
-- **Worktrees:** `w` abre uma sessão num branch novo, ao lado do repositório, para duas sessões não se atropelarem.
-- **Desempenho medido:** sem daemon, painel sem polling, hook em shell puro. O rodapé mostra CPU e processos criados por minuto e avisa se algo disparar; `argus bench` mede tudo.
+## Por quê
 
-## Requisitos
+Com uma dúzia de sessões entre projetos e contas, o difícil deixa de ser o código. É saber qual sessão está esperando uma permissão, qual terminou há dez minutos e se a conta do trabalho vai bater o limite de 5 horas antes do almoço. O Argus responde isso de relance e não atrapalha: sem daemon, sem polling, uns 16 MB de memória.
 
-macOS ou Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (para worktrees). Para compilar: Go 1.26+.
+## O que faz
+
+**Saber quem precisa de você**
+- Sessões abertas listadas pelo título da conversa, agrupadas por projeto, com o estado: trabalhando, esperando você, pronta. Notificação no desktop quando uma muda.
+- `y` responde uma sessão que espera você direto da lista: a pergunta e as opções aparecem embaixo dela. `Tab` pula para a próxima.
+- Abas em cima com as sessões abertas; clicar troca.
+
+**Todas as contas à vista**
+- Vários perfis: duas contas do Claude (`CLAUDE_CONFIG_DIR`), opencode, Gemini, Codex. Cada sessão tem a cor da sua conta.
+- O rodapé mostra o uso de 5 horas e de 7 dias de cada conta do Claude, com uma marca de quanto da janela já passou e um aviso quando o ritmo acaba antes de zerar.
+- `a` passa uma sessão para outra conta, mantendo a conversa.
+
+**Voltar a qualquer conversa**
+- Conversas antigas do Claude Code e do opencode, agrupadas por pasta. `h` busca pelo título enquanto você digita e depois pelo texto de todas as conversas. Enter retoma.
+- O nome que você dá a uma sessão (`r`) fica com a conversa.
+- Depois de reiniciar a máquina ou de uma queda, o Argus oferece reabrir o que estava aberto, cada uma na sua conta.
+
+**Trabalhar ao lado do agente**
+- `e` abre uma coluna de código: um editor ([Fresh](https://getfresh.dev), com LSP) na pasta da sessão, que abre cada arquivo que o agente muda, na linha mudada. Ela fica com a sua sessão e sobrevive a reinícios.
+- `d` mostra o diff da pasta; `w` abre uma sessão num worktree novo do git, para dois agentes nunca pisarem um no outro.
+- `v` mostra a tela de todas as sessões lado a lado; `g` mostra a linha do tempo do dia.
+
+**Leve**
+- Sessões paradas hibernam depois de 2 horas: o processo fecha para liberar memória e o Enter retoma de onde parou.
+- `T` escolhe o tema (escuro, noite, synthwave, rosa, vibrante, bordô, claro). Vale na hora para o painel, para toda sessão do Claude Code no tema Argus e para o editor.
+- `argus bench` confere o orçamento de desempenho: hook abaixo de 5 ms por evento, painel abaixo de 0,5% de CPU parado, menos de 30 MB de memória. O rodapé avisa quando algo na máquina dispara.
+
+Cada sessão é o CLI de verdade num terminal de verdade: memória, servidores MCP, skills, hooks e permissões funcionam como sempre. A tela segue o idioma do sistema (português ou inglês; `ARGUS_LANG=pt` ou `en` força um).
 
 ## Instalação
 
+macOS ou Linux, tmux 3.4+ (`brew install tmux` / `apt install tmux`), git (para worktrees). A coluna de código precisa do [Fresh](https://getfresh.dev) (`brew install fresh-editor`) ou de outro editor definido na configuração.
+
 ```sh
 curl -fsSL https://raw.githubusercontent.com/Marcone-Santos1/argus/main/install.sh | sh
-argus install   # hooks do Claude Code, Codex e Gemini, plugin do opencode, config do tmux e ~/.config/argus/config.toml
+argus install   # hooks do Claude Code, Codex e Gemini, plugin do opencode, config do tmux, temas
 argus           # abre o painel
 ```
 
-O script baixa a última versão para o seu sistema, confere o SHA-256 e coloca o `argus` em `~/.local/bin` (`ARGUS_INSTALL_DIR` muda isso). Outros jeitos:
+O script baixa a última versão, confere o SHA-256 e põe o `argus` em `~/.local/bin` (`ARGUS_INSTALL_DIR` muda). Outras formas:
 
 ```sh
 brew trust marcone-santos1/tap && brew install marcone-santos1/tap/argus-panel   # Homebrew
-go install github.com/Marcone-Santos1/argus/cmd/argus@latest                      # pelo código
+go install github.com/Marcone-Santos1/argus/cmd/argus@latest                      # do código (Go 1.26+)
 ```
 
-`argus install` acrescenta um hook aos `settings.json` do Claude Code, ao lado dos que já existem, e deixa um backup. `argus uninstall` remove tudo.
+O `argus install` acrescenta um hook às configurações de cada agente, ao lado dos que já existem, e deixa um backup. O `argus uninstall` remove tudo.
 
 ## Teclas
+
+<details>
+<summary>Todas as teclas (<code>?</code> mostra no painel)</summary>
 
 | Tecla | Ação |
 | --- | --- |
 | `↑` `↓` | seleciona; uma sessão aberta aparece à direita |
-| `[` `]` (ou `Shift+↑` `Shift+↓`, `K` `J`) | sobe ou desce a sessão na lista; na ponta da pasta, a pasta inteira se move |
-| `Enter` | entra na sessão, abre a pasta, ou retoma a conversa antiga |
-| `→ ←` | abre / fecha uma pasta de conversas antigas |
-| `v` | visão geral: a tela de todas as sessões lado a lado; setas escolhem, Enter abre |
-| `g` | linha do tempo de hoje: quando cada sessão trabalhou, esperou você ou ficou parada |
-| `d` | diff: o que mudou na pasta selecionada, numa janela por cima (q fecha) |
-| `t` | modelos: abre uma sessão guardada (pasta, conta e primeira mensagem); com uma sessão selecionada, guarda ela como modelo |
-| `< >` | estreita / alarga a lista (ou arraste a borda; a largura fica guardada) |
-| clique | seleciona (a sessão aparece à direita); clique duplo entra, ou retoma a conversa |
-| `Ctrl+\` | alterna entre a lista e a sessão (de qualquer lugar) |
-| `Tab` | pula para a próxima sessão esperando você |
-| `n` | nova sessão: projeto e perfil; digite um caminho começando com `/` ou `~` para escolher qualquer pasta (Tab entra) |
-| `w` | nova sessão numa worktree do repositório selecionado |
-| `h` | histórico completo, com busca |
+| `Enter` | entra na sessão, abre uma pasta ou retoma uma conversa antiga |
+| `Ctrl+\` | alterna entre a lista, a coluna de código e a sessão (de qualquer lugar) |
+| `Tab` | pula para a próxima sessão que espera você |
+| `y` | responde uma sessão que espera você, da lista |
+| `n` | nova sessão: projeto e perfil (um caminho começando com `/` ou `~` escolhe qualquer pasta; dá para criar) |
+| `w` | nova sessão num worktree do repositório selecionado |
+| `h` | histórico completo, com busca por título e texto |
 | `/` | filtra a lista |
-| `r` | renomeia a sessão (o nome fica com a conversa: volta quando você a reabre pelo histórico) |
+| `r` | renomeia a sessão (o nome fica com a conversa) |
 | `R` | reinicia a sessão na mesma conversa, para pegar MCP, skills ou configurações novas |
-| `a` | troca a conta da sessão (ex.: pessoal → trabalho), mantendo a conversa |
-| `y` | responde uma sessão que espera você direto da lista: a pergunta e as opções aparecem embaixo dela |
-| `?` | ajuda: todas as teclas |
-| `Esc` | esconde a sessão da direita sem encerrar (ou limpa o filtro) |
-| `x` | encerra a sessão (e oferece apagar a worktree) |
-| `z` | tela cheia |
-| `e` | coluna de código: um editor ([Fresh](https://getfresh.dev) por padrão, `editor` no config.toml) na pasta da sessão, entre a lista e a sessão; abre cada arquivo que o agente altera |
-| `b` | recolhe a lista numa faixa fina (e abre de novo) |
-| `L` | alterna entre o visual novo e o clássico |
-| `T` | alterna o tema Argus entre escuro e claro, no Argus e, na hora, em toda sessão do Claude Code com o tema "Argus" (o `argus install` o coloca no `/theme` do Claude) |
-| `1`–`9` | vai direto para a sessão |
+| `a` | passa a sessão para outra conta, mantendo a conversa |
+| `e` | coluna de código: um editor na pasta da sessão que segue as edições do agente |
+| `d` | diff da pasta selecionada |
+| `v` | visão geral: a tela de todas as sessões lado a lado |
+| `g` | linha do tempo do dia: quando cada sessão trabalhou, esperou você ou ficou parada |
+| `t` | modelos: abre uma sessão salva (pasta, conta e primeira mensagem), ou salva a selecionada |
+| `T` | escolhe o tema; mover mostra em tudo, Enter aplica |
+| `b` | recolhe a lista numa faixa fina (e volta) |
+| `[` `]` | sobe ou desce a sessão na lista |
+| `< >` | estreita / alarga a lista (ou arraste a borda) |
+| `L` | alterna entre o visual de app e o clássico |
+| `z` | zoom |
+| `Esc` | tira a sessão da direita sem fechar (ou limpa o filtro) |
+| `x` | fecha a sessão (e oferece apagar o worktree) |
+| `1`–`9` | pula para uma sessão |
 | `q` | fecha o painel; as sessões continuam no tmux |
+
+Mouse: clique seleciona (a sessão aparece à direita), clique duplo entra; clique numa aba em cima para trocar.
+
+</details>
 
 ## Configuração
 
-Cada sessão aparece na lista com o texto do perfil, `claude pes` por padrão. Para trocar esse texto em todas as sessões de um perfil, use `display = "Claude pessoal"` no perfil. Para dar nome a uma sessão só, aperte `r` nela; deixar o nome vazio volta para o texto do perfil.
+`~/.config/argus/config.toml` guarda as pastas de projetos, os perfis, as regras de perfil por pasta, o limite de sessões, quais mudanças de estado notificam (`notify = ["waiting", "done"]`), o editor (`editor = "fresh"`), o `hibernate_after` (`"0"` desliga a hibernação) e o `storm_rate`, os processos por minuto que disparam o alarme do rodapé (2000 por padrão, `-1` desliga).
 
-`~/.config/argus/config.toml`: pastas de projetos, perfis, regras de perfil por pasta, limite de sessões e quais mudanças de status geram aviso (`notify = ["waiting", "done"]`).
+Um perfil é um comando com seu ambiente:
 
-Uma sessão do Claude que terminou e ficou sem uso (sem trabalhar, fora da tela e sem nada rodando por trás) por `hibernate_after` (2 horas por padrão) hiberna: o processo fecha para liberar a memória e ela continua na lista com ◌. Enter retoma a conversa de onde parou. Sessões hibernadas não contam no limite de sessões. `hibernate_after = "0"` desliga.
+```toml
+[[profile]]
+name = "claude-work"
+command = "claude"
+env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
+```
 
-Se o Mac reiniciar ou o servidor do tmux cair, o próximo `argus` oferece reabrir as sessões que estavam abertas, cada uma retomando a conversa na sua conta.
+Cada linha de sessão mostra a etiqueta do perfil. `display = "Claude trabalho"` num perfil muda o texto, ou `r` dá nome a uma sessão só.
 
 ## Como funciona
 
-Um servidor tmux próprio (`tmux -L argus`) guarda as sessões. O painel fica à esquerda e troca a sessão da direita com `swap-pane`. O status vem de arquivos em `~/.local/state/argus/`, gravados pelo hook do Claude Code, Codex e Gemini (shell puro, um processo por evento) e pelo plugin do opencode (dentro do próprio opencode). O painel acompanha esses arquivos via kqueue.
+Um servidor tmux próprio (`tmux -L argus`) guarda as sessões. O painel fica à esquerda e troca a sessão da direita com `swap-pane`. O estado vem de arquivos em `~/.local/state/argus/`, escritos pelo hook do Claude Code, Codex e Gemini (shell puro, um processo por evento) e pelo plugin do opencode. O painel observa esses arquivos com kqueue/inotify, então nada fica consultando.
 
 A especificação completa, com regras, metas de desempenho e decisões, está em [`docs/especificacao.html`](docs/especificacao.html).
 
 ## Desenvolvimento
 
 ```
-cmd/argus/          comando (main)
+cmd/argus/          o comando
 internal/
   bench/            argus bench
   config/           config.toml e preferências por pasta
+  gitinfo/          branch, arquivos mudados e commits não enviados
   history/          conversas antigas (transcrições do Claude, banco do opencode)
-  install/          hook, plugin e config do tmux (assets/)
-  notify/           avisos do macOS
-  paths/            caminhos no disco
-  status/           estado de cada sessão
+  i18n/             textos da tela em inglês e português
+  install/          hook, plugin, temas e config do tmux (assets/)
+  notify/           notificações do desktop
+  paths/            lugares no disco
+  procs/            tabela de processos: memória e CPU por sessão
+  status/           o estado de cada sessão
   sysmon/           CPU e processos por minuto
   tmux/             cliente do servidor tmux
-  i18n/             textos da tela em inglês e português
   ui/               o painel
+  usage/            limites das contas, lidos da status line
   worktree/         worktrees do git
 ```
 
 ```sh
-make test     # testes (os de integração usam tmux e git de verdade, num servidor próprio)
-make check    # gofmt, vet e testes com -race (o que o CI roda)
-make install  # compila em ~/.local/bin/argus e roda argus install
+make test     # testes (os de integração usam tmux e git reais, num servidor próprio)
+make check    # gofmt, vet e testes com -race (o que o CI roda, no macOS e no Linux)
+make install  # compila em ~/.local/bin/argus e roda o argus install
 make bench    # mede o desempenho com o painel aberto
 ```
 
 Toda mudança precisa manter o `argus bench` dentro dos limites da especificação.
+
+Versões: crie uma tag (`git tag v0.3.0 && git push --tags`); o CI compila e publica a versão. Depois `scripts/update-tap.sh v0.3.0` atualiza a fórmula do Homebrew.
 
 ## Licença
 
