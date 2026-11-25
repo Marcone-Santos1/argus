@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/Marcone-Santos1/argus/internal/i18n"
+	"github.com/Marcone-Santos1/argus/internal/install"
 	"github.com/Marcone-Santos1/argus/internal/status"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
 )
@@ -38,9 +39,10 @@ var (
 	hFg, hText, hMuted, hFaint, hLine, hLine2, hTab string
 	hAmber, hGreen, hClaude                         string
 	lightLook                                       bool
+	paletteMode                                     string // the set in use
 )
 
-func init() { setPalette(false) }
+func init() { setPalette(install.ThemeDark) }
 
 // paneStyle is a tmux pane style on a background; the light set also sets
 // the text, since the terminal's own is light.
@@ -54,10 +56,25 @@ func paneStyle(bg string) string {
 func fg(r, g, b int) string  { return fmt.Sprintf("\x1b[38;2;%d;%d;%dm", r, g, b) }
 func bgc(r, g, b int) string { return fmt.Sprintf("\x1b[48;2;%d;%d;%dm", r, g, b) }
 
-// setPalette switches the app look's colors to the light or the dark set.
-func setPalette(light bool) {
-	lightLook = light
-	if light {
+// setPalette switches the app look's colors to a set: dark, night or light.
+func setPalette(mode string) {
+	paletteMode = mode
+	lightLook = mode == install.ThemeLight
+	if mode == install.ThemeNight { // purple and pink on blue-gray
+		aBg, aMain = "#21222c", "#282a36"
+		aCard, aNeed = bgc(52, 55, 70), bgc(66, 52, 50)
+		aSoft, aMuted, aFaint = fg(220, 220, 228), fg(98, 114, 164), fg(77, 80, 104)
+		aGreen, aAmber, aRed = fg(80, 250, 123), fg(255, 184, 108), fg(255, 85, 85)
+		aClaude, aOC, aBlue = fg(255, 121, 198), fg(189, 147, 249), fg(139, 233, 253)
+		pillRun = bgc(36, 64, 48) + fg(80, 250, 123)
+		pillNd = bgc(84, 62, 44) + fg(255, 184, 108)
+		pillN = bgc(68, 71, 90) + fg(220, 220, 228)
+		hFg, hText, hMuted, hFaint = "#f8f8f2", "#f8f8f2", "#6272a4", "#4d5068"
+		hLine, hLine2, hTab = "#343746", "#44475a", "#343746"
+		hAmber, hGreen, hClaude = "#ffb86c", "#50fa7b", "#ff79c6"
+		return
+	}
+	if lightLook {
 		aBg, aMain = "#f4f4f6", "#ffffff"
 		aCard, aNeed = bgc(228, 228, 233), bgc(253, 236, 204)
 		aSoft, aMuted, aFaint = fg(60, 60, 70), fg(105, 105, 115), fg(160, 160, 170)
@@ -95,7 +112,7 @@ func (p *Panel) toggleLook() {
 		p.prefs.Look = lookApp
 	}
 	_ = p.prefs.Save()
-	setPalette(p.appLook() && p.themeIsLight(p.claudeTheme))
+	setPalette(p.themeMode())
 	p.applyLook()
 	p.prevLines = nil // full redraw: the background changed
 	p.rebuildItems(p.selKey())

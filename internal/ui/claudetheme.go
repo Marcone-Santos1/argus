@@ -84,11 +84,11 @@ func (p *Panel) themeCheck(force bool) {
 	// to the mode.
 	switch newest {
 	case "custom:argus-dark", "custom:argus-light":
-		p.prefs.ThemeMode = map[bool]string{true: "light", false: ""}[newest == "custom:argus-light"]
+		p.prefs.ThemeMode = map[bool]string{true: install.ThemeLight, false: ""}[newest == "custom:argus-light"]
 		_ = p.prefs.Save()
 		newest = argusTheme
 	}
-	p.writeArgusTheme(p.prefs.ThemeMode == "light")
+	p.writeArgusTheme(p.argusMode())
 	p.claudeTheme = newest
 	// The last pick wins: the other accounts get it too.
 	for _, f := range files {
@@ -128,7 +128,7 @@ func setTheme(path, theme string) bool {
 // or a custom one ("custom:<slug>") whose base is light.
 func (p *Panel) themeIsLight(theme string) bool {
 	if theme == argusTheme {
-		return p.prefs.ThemeMode == "light"
+		return p.argusMode() == install.ThemeLight
 	}
 	if slug, ok := strings.CutPrefix(theme, "custom:"); ok {
 		for _, f := range p.claudeSettings() {
@@ -143,14 +143,36 @@ func (p *Panel) themeIsLight(theme string) bool {
 	return strings.HasPrefix(theme, "light")
 }
 
+// argusMode is the Argus theme's set chosen with T.
+func (p *Panel) argusMode() string {
+	if m := p.prefs.ThemeMode; m == install.ThemeLight || m == install.ThemeNight {
+		return m
+	}
+	return install.ThemeDark
+}
+
+// themeMode is the set the app look draws with: the Argus theme's own set,
+// or light or dark after another Claude theme. The classic look is dark.
+func (p *Panel) themeMode() string {
+	switch {
+	case !p.appLook():
+		return install.ThemeDark
+	case p.claudeTheme == argusTheme:
+		return p.argusMode()
+	case p.themeIsLight(p.claudeTheme):
+		return install.ThemeLight
+	}
+	return install.ThemeDark
+}
+
 // followTheme applies the Claude theme to the app look and to the editor.
 func (p *Panel) followTheme() {
-	light := p.appLook() && p.themeIsLight(p.claudeTheme)
-	p.setFreshTheme(light)
-	if light == lightLook {
+	mode := p.themeMode()
+	p.setFreshTheme(mode)
+	if mode == paletteMode {
 		return
 	}
-	setPalette(light)
+	setPalette(mode)
 	p.prevLines = nil
 	p.tabsText = ""
 	p.titles = map[string]string{}
@@ -162,11 +184,8 @@ func (p *Panel) followTheme() {
 // setFreshTheme picks Argus's Fresh theme for the look (only when the
 // editor uses one of Argus's themes, or none). Open editors take it when
 // they start again.
-func (p *Panel) setFreshTheme(light bool) {
-	want := "argus-dark"
-	if light {
-		want = "argus-light"
-	}
+func (p *Panel) setFreshTheme(mode string) {
+	want := "argus-" + mode
 	path := filepath.Join(p.d.Paths.Home, ".config", "fresh", "config.json")
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -197,8 +216,8 @@ const argusTheme = "custom:" + install.ClaudeThemeSlug
 // writeArgusTheme makes the Argus theme file of every Claude account dark or
 // light. Claude reloads a theme file when it changes: every open session on
 // the Argus theme follows at once.
-func (p *Panel) writeArgusTheme(light bool) {
-	body := []byte(install.ClaudeTheme(light))
+func (p *Panel) writeArgusTheme(mode string) {
+	body := []byte(install.ClaudeTheme(mode))
 	for _, pr := range p.d.Config.Profiles {
 		if pr.Label() != history.Claude {
 			continue
@@ -212,17 +231,16 @@ func (p *Panel) writeArgusTheme(light bool) {
 	}
 }
 
-// toggleTheme switches the Argus theme between dark and light (key T), in
-// Argus and in every Claude session using it, with no restart.
+// toggleTheme moves the Argus theme to its next set, dark → night → light
+// (key T), in Argus and in every Claude session using it, with no restart.
 func (p *Panel) toggleTheme() {
-	light := p.prefs.ThemeMode != "light"
-	if light {
-		p.prefs.ThemeMode = "light"
-	} else {
+	mode := map[string]string{install.ThemeDark: install.ThemeNight, install.ThemeNight: install.ThemeLight, install.ThemeLight: install.ThemeDark}[p.argusMode()]
+	p.prefs.ThemeMode = mode
+	if mode == install.ThemeDark {
 		p.prefs.ThemeMode = ""
 	}
 	_ = p.prefs.Save()
-	p.writeArgusTheme(light)
+	p.writeArgusTheme(mode)
 	// The accounts on another theme move to the Argus one (a session started
 	// before that takes it when it restarts).
 	for _, f := range p.claudeSettings() {
@@ -234,5 +252,5 @@ func (p *Panel) toggleTheme() {
 	}
 	p.claudeTheme = argusTheme
 	p.followTheme()
-	p.flash(i18n.T("msg.theme." + map[bool]string{true: "light", false: "dark"}[light]))
+	p.flash(i18n.T("msg.theme." + mode))
 }

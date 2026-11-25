@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"github.com/Marcone-Santos1/argus/internal/install"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,7 +36,7 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	_ = os.MkdirAll(filepath.Join(home, ".claude", "themes"), 0o755)
 	_ = os.WriteFile(filepath.Join(home, ".claude", "themes", "argus-light.json"), []byte(`{"base":"light"}`), 0o644)
 	p := New(Deps{Paths: paths.For(home, "x"), Config: cfg, Tmux: tmux.New("argus-theme-test-missing")})
-	t.Cleanup(func() { setPalette(false) })
+	t.Cleanup(func() { setPalette(install.ThemeDark) })
 
 	p.themeCheck(true)
 	if lightLook {
@@ -81,9 +82,18 @@ env = { CLAUDE_CONFIG_DIR = "~/.claude-work" }
 	if lightLook || argus(".claude") != "dark" || argus(".claude-work") != "dark" {
 		t.Fatalf("dark after T: %v %q", lightLook, argus(".claude"))
 	}
+	// Then night, purple on blue-gray, in Argus, Claude and the editor.
+	p.handleKey("T")
+	fresh, _ = os.ReadFile(filepath.Join(home, ".config", "fresh", "config.json"))
+	if paletteMode != install.ThemeNight || argus(".claude") != "dark" || gjson.GetBytes(fresh, "theme").String() != "argus-night" {
+		t.Fatalf("night after T: %q %s", paletteMode, fresh)
+	}
+	if data, _ := os.ReadFile(filepath.Join(home, ".claude", "themes", "argus.json")); gjson.GetBytes(data, "overrides.claude").String() != "#ff79c6" {
+		t.Fatalf("night theme file: %s", data)
+	}
 	p.handleKey("T")
 	if !lightLook {
-		t.Fatal("light after T again")
+		t.Fatal("light after night")
 	}
 	// The classic look stays dark whatever the theme.
 	p.handleKey("L")
