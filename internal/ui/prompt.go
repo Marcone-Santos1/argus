@@ -14,6 +14,8 @@ import (
 // a permission request or a question with a list of options.
 type prompt struct {
 	Context  string   // what it is about (the command, the file, the title)
+	Body     string   // the whole command or detail above the question
+	Risks    []string // what deserves a second look (see risk.go)
 	Question string   // "Do you want to proceed?"
 	Options  []string // option texts, in order
 	Numbered bool     // options are typed as 1, 2, 3...
@@ -150,6 +152,19 @@ func parsePrompt(screen string) (prompt, bool) {
 			break
 		}
 	}
+	// The body: everything between the dialog's top and the question, for
+	// the risk check (a long command spans several lines).
+	from := top + 1
+	if top == -1 {
+		from = max(q-12, 0)
+	}
+	var body []string
+	for i := from; i < q && i >= 0; i++ {
+		if t := strings.TrimSpace(lines[i]); t != "" && !isRule(lines[i]) {
+			body = append(body, t)
+		}
+	}
+	pr.Body = strings.Join(body, "\n")
 	if pr.Context == "" && top != -1 {
 		for i := top + 1; i < q; i++ {
 			if t := strings.TrimSpace(lines[i]); t != "" && !isRule(lines[i]) {
@@ -193,6 +208,7 @@ func (p *Panel) capturePrompt(agentID string) {
 			return
 		}
 		if pr, ok := parsePrompt(out); ok {
+			pr.Risks = riskOf(pr, a.Dir, p.d.Paths.Home)
 			p.prompts[agentID] = pr
 		} else {
 			delete(p.prompts, agentID)
@@ -275,6 +291,10 @@ func (p *Panel) keyAnswer(k string) {
 		p.answering = ""
 		p.mode = modeList
 	case k == "enter":
+		if len(pr.Risks) > 0 { // not by reflex: the option is chosen by its number
+			p.flash(i18n.T("msg.riskyEnter"))
+			return
+		}
 		p.answer(pr.Selected)
 	case len(k) == 1 && k >= "1" && k <= "9":
 		if i := int(k[0] - '1'); i < len(pr.Options) {

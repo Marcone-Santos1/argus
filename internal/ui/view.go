@@ -441,7 +441,7 @@ func (p *Panel) agentRows(a agent, num int, sel bool, now time.Time, w int) []st
 		if q == "" {
 			q = pr.Question
 		}
-		left = []span{sp(q, cWaiting)}
+		left = append(riskSpans(pr, cEnded), sp(q, cWaiting))
 	case reply != "" && replyShown(a):
 		left = []span{sp("↳ ", cFaint), sp(reply, "\x1b[3m"+cQuiet)}
 		if bg := p.backgroundSpans(a); bg != nil {
@@ -930,7 +930,8 @@ func (p *Panel) promptLines(pr prompt, w int) []string {
 		if text == "" {
 			text = pr.Question
 		}
-		out = append(out, line(w, bgWait, append(lead, sp(text, cQuiet))...))
+		row := append(lead, riskSpans(pr, cEnded)...)
+		out = append(out, line(w, bgWait, append(row, sp(text, cQuiet))...))
 	}
 	var opts []string
 	for i, o := range pr.Options {
@@ -943,6 +944,14 @@ func (p *Panel) promptLines(pr prompt, w int) []string {
 	return out
 }
 
+// riskSpans is the "⚠ deletes files · " lead of a risky prompt's line.
+func riskSpans(pr prompt, color string) []span {
+	if len(pr.Risks) == 0 {
+		return nil
+	}
+	return []span{sp("⚠ "+pr.Risks[0]+" · ", "\x1b[1m"+color)}
+}
+
 // answerLines is the footer while answering a session (key y).
 func (p *Panel) answerLines(w int) []string {
 	pr := p.prompts[p.answering]
@@ -953,6 +962,9 @@ func (p *Panel) answerLines(w int) []string {
 		}
 	}
 	out := []string{line(w, "", sp(" "+i18n.T("prompt.title", name), yellow))}
+	if len(pr.Risks) > 0 {
+		out = append(out, line(w, "", sp("   ⚠ "+strings.Join(pr.Risks, " · "), "\x1b[1m"+cEnded)))
+	}
 	if pr.Context != "" {
 		out = append(out, line(w, "", sp("   "+pr.Context, cQuiet)))
 	}
@@ -967,7 +979,11 @@ func (p *Panel) answerLines(w int) []string {
 		}
 		out = append(out, line(w, "", sp("   "+mark, cAccent), sp(fmt.Sprintf("%d  %s", i+1, o), style)))
 	}
-	return append(out, line(w, "", sp(" "+i18n.T("prompt.keys"), cFaint)))
+	keys := "prompt.keys"
+	if len(pr.Risks) > 0 {
+		keys = "prompt.keysRisky"
+	}
+	return append(out, line(w, "", sp(" "+i18n.T(keys), cFaint)))
 }
 
 // ctxColor: the context gets yellow from 70% and red from 90% (Claude

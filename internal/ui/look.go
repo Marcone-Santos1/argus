@@ -637,7 +637,11 @@ func (p *Panel) needCard(a agent, sel bool, now time.Time, w int) []string {
 	if q == "" {
 		q = i18n.T("st.waiting")
 	}
-	out = append(out, card(w, bg, []span{bar, sp("     ", ""), sp(q, aSoft)}, []span{sp(i18n.T("hint.answer"), aAmber)}))
+	lead := []span{bar, sp("     ", "")}
+	if pr, ok := p.prompts[a.ID]; ok {
+		lead = append(lead, riskSpans(pr, aRed)...)
+	}
+	out = append(out, card(w, bg, append(lead, sp(q, aSoft)), []span{sp(i18n.T("hint.answer"), aAmber)}))
 	return out
 }
 
