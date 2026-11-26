@@ -75,6 +75,12 @@ func (p *Panel) hibernate(a *agent, now time.Time) bool {
 	return true
 }
 
+// sleepNote is the shell line a session restored hibernated shows.
+func sleepNote(since time.Time) string {
+	return fmt.Sprintf(`printf '\033[2J\033[H\n  %%s\n  %%s\n' %s %s`,
+		shellQuote(i18n.T("sleep.since", since.Format("02/01 15:04"))), shellQuote(i18n.T("sleep.how")))
+}
+
 // wake resumes a hibernated session's conversation in its own pane.
 func (p *Panel) wake(a *agent) bool {
 	prof, ok := p.profileOf(a.Profile)

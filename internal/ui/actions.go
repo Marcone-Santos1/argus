@@ -322,7 +322,7 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''
 func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Entry, wtRepo string) {
 	p.closePicker()
 	p.worktreeOf = ""
-	id, err := p.spawn(dir, prof, resume, wtRepo, "")
+	id, err := p.spawn(dir, prof, resume, wtRepo, "", time.Time{})
 	if err != nil {
 		p.flash(err.Error())
 		if id == "" {

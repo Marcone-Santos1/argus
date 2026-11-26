@@ -24,7 +24,8 @@ type snapEntry struct {
 	Tool     string `json:"tool"`
 	Session  string `json:"session,omitempty"` // conversation id, to resume it
 	Worktree string `json:"worktree,omitempty"`
-	Code     bool   `json:"code,omitempty"` // its code column was open
+	Code     bool   `json:"code,omitempty"`   // its code column was open
+	Asleep   int64  `json:"asleep,omitempty"` // hibernated since (unix): it comes back hibernated
 }
 
 func (p *Panel) snapshot() []snapEntry {
@@ -34,7 +35,11 @@ func (p *Panel) snapshot() []snapEntry {
 		if pr, ok := p.profileOf(a.Profile); ok {
 			tool = pr.Label()
 		}
-		out = append(out, snapEntry{Name: a.Name, Profile: a.Profile, Dir: a.Dir, Tool: tool, Session: a.Session, Worktree: a.Worktree, Code: p.codeOpen[a.ID]})
+		e := snapEntry{Name: a.Name, Profile: a.Profile, Dir: a.Dir, Tool: tool, Session: a.Session, Worktree: a.Worktree, Code: p.codeOpen[a.ID]}
+		if !a.Asleep.IsZero() {
+			e.Asleep = a.Asleep.Unix()
+		}
+		out = append(out, e)
 	}
 	return out
 }
@@ -122,7 +127,13 @@ func (p *Panel) restore(snap []snapEntry) {
 			}
 			resume = &history.Entry{Tool: tool, ID: e.Session}
 		}
-		id, err := p.spawn(e.Dir, prof, resume, e.Worktree, e.Name)
+		// A hibernated session comes back hibernated: its pane holds the
+		// note, and Enter resumes the conversation as before the restart.
+		var asleep time.Time
+		if e.Asleep > 0 && resume != nil && prof.Label() == history.Claude {
+			asleep = time.Unix(e.Asleep, 0)
+		}
+		id, err := p.spawn(e.Dir, prof, resume, e.Worktree, e.Name, asleep)
 		if err != nil {
 			p.flash(err.Error())
 			continue
@@ -130,7 +141,7 @@ func (p *Panel) restore(snap []snapEntry) {
 		if e.Code {
 			p.codeOpen[id] = true // the column comes back with the session
 		}
-		if first == "" {
+		if first == "" && asleep.IsZero() { // focusing a hibernated one would wake it
 			first = id
 		}
 		n++
@@ -145,7 +156,9 @@ func (p *Panel) restore(snap []snapEntry) {
 
 // spawn starts a session in a hidden tmux window and returns its id. It does
 // not touch the selection or the right side.
-func (p *Panel) spawn(dir string, prof config.Profile, resume *history.Entry, wtRepo, name string) (string, error) {
+//
+// With asleep set, the session starts hibernated: no process, only the note.
+func (p *Panel) spawn(dir string, prof config.Profile, resume *history.Entry, wtRepo, name string, asleep time.Time) (string, error) {
 	session := ""
 	if resume != nil {
 		if !history.SafeID(resume.ID) {
@@ -167,6 +180,12 @@ func (p *Panel) spawn(dir string, prof config.Profile, resume *history.Entry, wt
 	_ = status.Write(p.d.Paths.Status(id), status.Idle)
 
 	env, cmd := p.launch(id, prof, resume)
+	opts := []string{"remain-on-exit", "off"}
+	if !asleep.IsZero() {
+		// The note stays a second so the options below land before it exits.
+		cmd = []string{"/bin/sh", "-c", sleepNote(asleep) + "; sleep 1"}
+		opts = []string{"remain-on-exit", "on", "remain-on-exit-format", " ", "@argus_sleep", fmt.Sprint(asleep.Unix())}
+	}
 	args := []string{"new-window", "-d", "-t", tmux.Session + ":", "-n", id, "-c", dir}
 	args = append(args, env...)
 	args = append(args, "-P", "-F", "#{pane_id}")
@@ -174,10 +193,10 @@ func (p *Panel) spawn(dir string, prof config.Profile, resume *history.Entry, wt
 	if err != nil {
 		return "", err
 	}
-	if err := p.d.Tmux.SetPaneOptions(paneID,
-		"@argus_role", tmux.RoleAgent, "@argus_id", id, "@argus_profile", prof.Name,
+	opts = append([]string{"@argus_role", tmux.RoleAgent, "@argus_id", id, "@argus_profile", prof.Name,
 		"@argus_dir", dir, "@argus_name", name, "@argus_created", fmt.Sprint(time.Now().UnixNano()),
-		"@argus_session", session, "@argus_worktree", wtRepo, "remain-on-exit", "off"); err != nil {
+		"@argus_session", session, "@argus_worktree", wtRepo}, opts...)
+	if err := p.d.Tmux.SetPaneOptions(paneID, opts...); err != nil {
 		return id, err
 	}
 	return id, nil

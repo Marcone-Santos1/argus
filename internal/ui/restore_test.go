@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/Marcone-Santos1/argus/internal/config"
+	"github.com/Marcone-Santos1/argus/internal/history"
 	"github.com/Marcone-Santos1/argus/internal/paths"
 	"github.com/Marcone-Santos1/argus/internal/status"
 	"github.com/Marcone-Santos1/argus/internal/tmux"
@@ -137,5 +138,63 @@ sleep 300
 	}
 	if pn.mode != modeList {
 		t.Fatal("back to the list after answering")
+	}
+}
+
+// A hibernated session comes back hibernated after the server dies: no
+// process until Enter resumes it.
+func TestRestoreKeepsHibernated(t *testing.T) {
+	needTmux(t)
+	home := t.TempDir()
+	sock := fmt.Sprintf("argus-restore-sleep-%d", os.Getpid())
+	p := paths.For(home, sock)
+	_ = os.MkdirAll(p.State, 0o755)
+	bin := filepath.Join(t.TempDir(), "claude") // the label decides it is Claude
+	_ = os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 300\n"), 0o755)
+	cfg, _ := config.Parse("[[profile]]\nname = \"fake\"\ngroup = \"PERSONAL\"\ncommand = \""+bin+"\"\n", home)
+	const conv = "11111111-2222-3333-4444-555555555555"
+
+	pn, tc := newServer(t, sock, p, cfg)
+	t.Cleanup(func() { _, _ = tc.Run("kill-server") })
+	pn.reconcile()
+	pn.offerRestore()
+	pn.createAgent(t.TempDir(), cfg.Profiles[0], &history.Entry{Tool: history.Claude, ID: conv}, "")
+	pn.createAgent(t.TempDir(), cfg.Profiles[0], nil, "")
+	pn.reconcile()
+	for i := range pn.agents {
+		if pn.agents[i].Session == conv {
+			if !pn.hibernate(&pn.agents[i], time.Now()) {
+				t.Fatal("hibernate")
+			}
+		}
+	}
+	pn.reconcile()
+
+	_, _ = tc.Run("kill-server")
+	pn2, tc2 := newServer(t, sock, p, cfg)
+	t.Cleanup(func() { _, _ = tc2.Run("kill-server") })
+	pn2.reconcile()
+	pn2.offerRestore()
+	fn := pn2.confirmFn
+	pn2.mode, pn2.confirmFn, pn2.confirmNo = modeList, nil, nil
+	fn()
+	time.Sleep(1500 * time.Millisecond) // the note's shell exits
+	pn2.reconcile()
+	asleep, awake := 0, 0
+	for _, a := range pn2.agents {
+		if a.Asleep.IsZero() {
+			awake++
+		} else {
+			asleep++
+			if a.Session != conv {
+				t.Errorf("the hibernated one keeps its conversation: %q", a.Session)
+			}
+		}
+	}
+	if asleep != 1 || awake != 1 {
+		t.Fatalf("restored: %d asleep, %d awake (%+v)", asleep, awake, pn2.agents)
+	}
+	if !pn2.current().Asleep.IsZero() {
+		t.Fatal("the awake session is the one selected")
 	}
 }

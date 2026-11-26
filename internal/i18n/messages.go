@@ -191,6 +191,7 @@ var messages = map[string][2]string{
 	"st.asleep":           {"asleep", "hibernada"},
 	"list.asleep":         {"asleep · ⏎ resumes", "hibernada · ⏎ retoma"},
 	"sleep.title":         {"Hibernated after %s without use: the process was closed to free memory.", "Hibernada depois de %s sem uso: o processo foi fechado para liberar memória."},
+	"sleep.since":         {"Hibernated since %s: the process was closed to free memory.", "Hibernada desde %s: o processo foi fechado para liberar memória."},
 	"sleep.how":           {"Enter (or a click) on it in the list resumes the conversation where it stopped.", "Enter (ou um clique) nela na lista retoma a conversa de onde parou."},
 	"msg.confirmKeys":     {"y or Enter yes · any other key no", "s ou Enter sim · qualquer outra tecla não"},
 	"msg.limit":           {"There are already %d sessions (limit %d). Open one more? (y/n)", "Já são %d sessões (limite %d). Abrir mais uma? (s/n)"},
