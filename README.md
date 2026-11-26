@@ -33,6 +33,7 @@ With a dozen sessions across projects and accounts, the hard part stops being th
 - `v` shows every session's screen side by side; `g` shows today's timeline.
 
 **Stay light**
+- A long conversation gets a `/compact` between turns when its context passes `compact_at` (off by default), instead of compacting by itself mid-task. `C` hands the work over to a new conversation in the same place.
 - Idle sessions hibernate after 2 hours: the process closes to free memory and Enter resumes it where it stopped.
 - `T` picks a theme (dark, night, synthwave, pink, vibrant, bordeaux, light). It applies live to the panel, every Claude Code session on the Argus theme and the editor.
 - `argus bench` checks the performance budget: hook under 5 ms per event, panel under 0.5% CPU when idle, under 30 MB of memory. The footer warns when something on the machine runs away.
@@ -76,6 +77,8 @@ go install github.com/Marcone-Santos1/argus/cmd/argus@latest                    
 | `/` | filter the list |
 | `r` | rename the session (the name stays with the conversation) |
 | `R` | restart the session on the same conversation, to pick up new MCP servers, skills or settings |
+| `c` | compact the session now (`/compact`, keeping what `compact_focus` says) |
+| `C` | continue in a new conversation: the session writes a handoff, then a fresh conversation picks it up in the same place |
 | `a` | move the session to another account, keeping the conversation |
 | `e` | code column: an editor in the session's folder that follows the agent's edits |
 | `d` | diff of the selected folder |
@@ -99,7 +102,7 @@ Mouse: click selects (a session shows on the right), double click enters; click 
 
 ## Configuration
 
-`~/.config/argus/config.toml` holds the project folders, profiles, per-folder profile rules, the session limit, which status changes notify you (`notify = ["waiting", "done"]`), the editor (`editor = "fresh"`), `hibernate_after` (`"0"` turns hibernation off) and `storm_rate`, the processes per minute that raise the footer's alarm (2000 by default, `-1` turns it off).
+`~/.config/argus/config.toml` holds the project folders, profiles, per-folder profile rules, the session limit, which status changes notify you (`notify = ["waiting", "done"]`), the editor (`editor = "fresh"`), `hibernate_after` (`"0"` turns hibernation off), `compact_at` and `compact_focus` (when and how a long conversation is compacted), `handoff_prompt` and `handoff_resume` (what `C` asks for: a file by default, or a memory tool's handoff) and `storm_rate`, the processes per minute that raise the footer's alarm (2000 by default, `-1` turns it off).
 
 A profile is a command with its environment:
 

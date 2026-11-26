@@ -118,6 +118,8 @@ type Panel struct {
 	extrasSeen   map[string]bool       // sessions whose git/reply were read once
 	seenAt       map[string]time.Time  // last time each session was on the right (hibernation)
 	bgAgents     map[string]int        // background agents still running after the turn ended
+	handoffs     map[string]string     // sessions writing a handoff (C): id → its file
+	compacted    map[string]time.Time  // when each session was last sent /compact
 	bgTick       int
 	transcripts  map[string]string  // conversation id -> transcript path
 	shells       map[string]int     // per session: commands still running in the background
@@ -227,7 +229,7 @@ func New(d Deps) *Panel {
 		d: d, prefs: config.LoadPrefs(d.Paths.Prefs()), hist: h,
 		recentC: make(chan []history.Entry, 1), metrics: map[string]float64{},
 		asyncC: make(chan func(), 16), git: map[string]gitState{}, reply: map[string]string{},
-		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
+		usage: map[string]usage.Info{}, extrasSeen: map[string]bool{}, seenAt: map[string]time.Time{}, bgAgents: map[string]int{}, handoffs: map[string]string{}, compacted: map[string]time.Time{}, transcripts: map[string]string{}, shells: map[string]int{}, sized: map[string]string{},
 		res: map[string]sessRes{}, cpuPrev: map[int]uint64{}, cpuSeries: map[string][]float64{},
 		screens: map[string][]string{},
 		prompts: map[string]prompt{}, expanded: map[string]bool{}, editors: map[string]string{}, lastEdit: map[string]string{}, codeOpen: map[string]bool{}, themeFiles: map[string]themeFile{}, titleOf: map[string]string{}, captureC: make(chan string, 8),
@@ -581,6 +583,9 @@ func (p *Panel) refreshStatus(i int, notify bool) {
 		p.refreshRecent() // the turn ended: the conversation may have a (new) title
 		p.refreshExtras(*a)
 		p.checkShells()
+		if st == status.Done {
+			p.turnEnded(a.ID)
+		}
 	}
 	if st == status.Waiting && (prev != st || !seen) {
 		p.capturePromptSoon(a.ID)

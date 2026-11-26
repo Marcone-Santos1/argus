@@ -272,6 +272,10 @@ func (p *Panel) keyList(k string) {
 		p.renameSelected()
 	case "R":
 		p.restartSelected()
+	case "c":
+		p.compactSelected()
+	case "C":
+		p.handoffSelected()
 	case "L":
 		p.toggleLook()
 	case "T":

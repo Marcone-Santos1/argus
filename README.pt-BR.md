@@ -33,6 +33,7 @@ Com uma dúzia de sessões entre projetos e contas, o difícil deixa de ser o c�
 - `v` mostra a tela de todas as sessões lado a lado; `g` mostra a linha do tempo do dia.
 
 **Leve**
+- Uma conversa longa recebe um `/compact` entre turnos quando o contexto passa de `compact_at` (desligado por padrão), em vez de compactar sozinha no meio de uma tarefa. O `C` passa o trabalho para uma conversa nova no mesmo lugar.
 - Sessões paradas hibernam depois de 2 horas: o processo fecha para liberar memória e o Enter retoma de onde parou.
 - `T` escolhe o tema (escuro, noite, synthwave, rosa, vibrante, bordô, claro). Vale na hora para o painel, para toda sessão do Claude Code no tema Argus e para o editor.
 - `argus bench` confere o orçamento de desempenho: hook abaixo de 5 ms por evento, painel abaixo de 0,5% de CPU parado, menos de 30 MB de memória. O rodapé avisa quando algo na máquina dispara.
@@ -76,6 +77,8 @@ O `argus install` acrescenta um hook às configurações de cada agente, ao lado
 | `/` | filtra a lista |
 | `r` | renomeia a sessão (o nome fica com a conversa) |
 | `R` | reinicia a sessão na mesma conversa, para pegar MCP, skills ou configurações novas |
+| `c` | compacta a sessão agora (`/compact`, guardando o que diz `compact_focus`) |
+| `C` | continua numa conversa nova: a sessão escreve um handoff e uma conversa nova retoma dele no mesmo lugar |
 | `a` | passa a sessão para outra conta, mantendo a conversa |
 | `e` | coluna de código: um editor na pasta da sessão que segue as edições do agente |
 | `d` | diff da pasta selecionada |
@@ -99,7 +102,7 @@ Mouse: clique seleciona (a sessão aparece à direita), clique duplo entra; cliq
 
 ## Configuração
 
-`~/.config/argus/config.toml` guarda as pastas de projetos, os perfis, as regras de perfil por pasta, o limite de sessões, quais mudanças de estado notificam (`notify = ["waiting", "done"]`), o editor (`editor = "fresh"`), o `hibernate_after` (`"0"` desliga a hibernação) e o `storm_rate`, os processos por minuto que disparam o alarme do rodapé (2000 por padrão, `-1` desliga).
+`~/.config/argus/config.toml` guarda as pastas de projetos, os perfis, as regras de perfil por pasta, o limite de sessões, quais mudanças de estado notificam (`notify = ["waiting", "done"]`), o editor (`editor = "fresh"`), o `hibernate_after` (`"0"` desliga a hibernação), o `compact_at` e o `compact_focus` (quando e como uma conversa longa é compactada), o `handoff_prompt` e o `handoff_resume` (o que o `C` pede: um arquivo por padrão, ou o handoff de uma ferramenta de memória) e o `storm_rate`, os processos por minuto que disparam o alarme do rodapé (2000 por padrão, `-1` desliga).
 
 Um perfil é um comando com seu ambiente:
 

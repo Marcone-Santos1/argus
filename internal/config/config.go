@@ -92,6 +92,14 @@ type Config struct {
 	// HibernateAfter closes a finished session's process after this long
 	// without use ("2h"); it resumes on Enter. "0" turns it off.
 	HibernateAfter string `toml:"hibernate_after"`
+	// CompactAt sends /compact to a Claude session whose turn ends with its
+	// context above this % (0 = off); CompactFocus is what the summary keeps.
+	CompactAt    int    `toml:"compact_at"`
+	CompactFocus string `toml:"compact_focus"`
+	// HandoffPrompt asks a session to hand its work over ({file}, {name});
+	// HandoffResume starts the new conversation that continues it (key C).
+	HandoffPrompt string `toml:"handoff_prompt"`
+	HandoffResume string `toml:"handoff_resume"`
 	// Editor is the command the code column (key e) runs in a folder.
 	Editor    string     `toml:"editor"`
 	Notify    []string   `toml:"notify"`
@@ -110,6 +118,12 @@ type Template struct {
 	Saved   bool   `toml:"-"` // created from the panel (templates.toml), so it can be deleted there
 }
 
+const (
+	DefaultCompactFocus  = "keep the goal of the task, the decisions made, the files changed, what works, what is missing and the next step"
+	DefaultHandoffPrompt = "Write a handoff to {file} for whoever continues this work in a new conversation: the goal, the decisions made, the files changed, what works, what is missing and the next step. Only write the file."
+	DefaultHandoffResume = "Continue the work described in {file}. Read it first."
+)
+
 // DefaultTOML is the config.toml written by install.
 const DefaultTOML = `# Argus configuration. This file is yours; install never overwrites it.
 
@@ -124,6 +138,22 @@ max_sessions = 8
 # closed (freeing its memory) and it stays in the list; Enter resumes the
 # conversation. "0" turns it off.
 hibernate_after = "2h"
+
+# A Claude session whose turn ends with its context above this % gets a
+# /compact while it is idle and you are not looking at it, so it does not
+# compact by itself in the middle of a task. 0 turns it off.
+compact_at = 0
+compact_focus = "keep the goal of the task, the decisions made, the files changed, what works, what is missing and the next step"
+
+# C continues the selected session in a new conversation, in the same place:
+# the session first writes a handoff (handoff_prompt), then a new
+# conversation starts with handoff_resume. {file} is a file in Argus's state
+# folder for this session, {name} the session's name. With ai-memory, for
+# example:
+#   handoff_prompt = "Save an ai-memory handoff titled \"{name}\" with the goal, decisions, files changed, what works, what is missing and the next step."
+#   handoff_resume = "Accept the ai-memory handoff titled \"{name}\" and continue the work."
+handoff_prompt = "Write a handoff to {file} for whoever continues this work in a new conversation: the goal, the decisions made, the files changed, what works, what is missing and the next step. Only write the file."
+handoff_resume = "Continue the work described in {file}. Read it first."
 
 # The editor of the code column (key e), run in the session's folder.
 editor = "fresh"
@@ -281,6 +311,15 @@ func Parse(data, home string) (*Config, error) {
 	}
 	if c.Editor == "" {
 		c.Editor = "fresh"
+	}
+	if c.CompactAt < 0 || c.CompactAt > 100 {
+		c.CompactAt = 0
+	}
+	if c.CompactFocus == "" {
+		c.CompactFocus = DefaultCompactFocus
+	}
+	if c.HandoffPrompt == "" || c.HandoffResume == "" {
+		c.HandoffPrompt, c.HandoffResume = DefaultHandoffPrompt, DefaultHandoffResume
 	}
 	if !md.IsDefined("notify") {
 		c.Notify = []string{"waiting", "done"}
