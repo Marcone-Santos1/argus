@@ -233,6 +233,10 @@ func TestHookScript(t *testing.T) {
 		return lines[0], lines[1]
 	}
 	run := func(id, arg string) string {
+		if arg == "notify-idle" {
+			st, _ := runIn(id, "notify", `{"hook_event_name":"Notification","notification_type":"idle_prompt"}`+"\n")
+			return st
+		}
 		st, _ := runIn(id, arg, "")
 		return st
 	}
@@ -264,7 +268,9 @@ func TestHookScript(t *testing.T) {
 		{"prompt", "working"},
 		{"tool", "working"},
 		{"notify", "waiting"},
-		{"tool", "working"}, // permission answered
+		{"tool", "working"},     // permission answered
+		{"notify-idle", "done"}, // "waiting for your input" ends a turn, it asks nothing
+		{"prompt", "working"},
 		{"perm", "waiting"},
 		{"stop", "done"},
 		{"unknown", "done"},
@@ -285,6 +291,7 @@ func TestHookScript(t *testing.T) {
 		{"substop", "working"}, // a foreground one finished inside the turn
 		{"stop", "working"},
 		{"notify", "working"},
+		{"notify-idle", "working"},
 		{"substop", "done"},
 		{"prompt", "working"},
 		{"stop", "done"},

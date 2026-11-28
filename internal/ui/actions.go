@@ -346,6 +346,16 @@ func (p *Panel) createAgent(dir string, prof config.Profile, resume *history.Ent
 
 // resumeEntry resumes a conversation; it asks for the account only when none is recorded.
 func (p *Panel) resumeEntry(e history.Entry) {
+	// A conversation already open in a session goes to that session (a
+	// hibernated one wakes when focused): two processes writing the same
+	// conversation would mix it up.
+	if a := p.holding(e.Tool, e.ID); a != nil {
+		p.closePicker()
+		p.rebuildItems("")
+		p.selectKey("a:" + a.ID)
+		p.focusSession()
+		return
+	}
 	p.backMode = p.mode
 	p.resume = &e
 	p.chosenDir = e.Dir
@@ -360,6 +370,23 @@ func (p *Panel) resumeEntry(e history.Entry) {
 		return
 	}
 	p.askProfile(choices, choices[0].Name)
+}
+
+// holding returns the session that has the conversation open, or nil.
+func (p *Panel) holding(tool, id string) *agent {
+	if id == "" {
+		return nil
+	}
+	for i := range p.agents {
+		a := &p.agents[i]
+		if a.Session != id {
+			continue
+		}
+		if prof, ok := p.profileOf(a.Profile); ok && (tool == "" || prof.Label() == tool) {
+			return a
+		}
+	}
+	return nil
 }
 
 // ---------- history ----------

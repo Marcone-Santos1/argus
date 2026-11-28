@@ -40,9 +40,15 @@ case "$1" in
     [ "$sub" = 0 ] && [ "$held" = 1 ] && { new=done held=; }
     ;;
   perm)   new=waiting ;;
-  # Claude's "waiting for input" notice while only background agents run
-  # is not a question.
-  notify) [ "$cur" = working ] && [ "$held" != 1 ] || exit 0; new=waiting ;;
+  # Claude's "waiting for input" notice (idle_prompt) is not a question:
+  # the turn is over, so a session still marked working (a turn started by a
+  # background task's notice, which has no Stop) is done. While background
+  # agents run it stays working. Any other notice asks something.
+  notify)
+    [ "$cur" = working ] && [ "$held" != 1 ] || exit 0
+    IFS= read -r line
+    case "$line" in *'"idle_prompt"'*) new=done ;; *) new=waiting ;; esac
+    ;;
   tool)   [ "$cur" = waiting ] || exit 0; new=working ;;
   # A file changed: tell the panel (its code column follows the agent).
   edit)   printf '%s\n' "$ARGUS_ID" >> "__STATE_DIR__/_edit" 2>/dev/null; exit 0 ;; # appended: edits close together are all seen

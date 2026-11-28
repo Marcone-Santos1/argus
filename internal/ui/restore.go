@@ -112,9 +112,33 @@ func (p *Panel) offerRestore() {
 }
 
 // restore reopens the sessions, resuming each conversation in its account.
+// dedupe keeps one entry per conversation, the awake one when there is one:
+// a list saved with the same conversation twice would start it twice.
+func dedupe(snap []snapEntry) []snapEntry {
+	awake := map[string]bool{}
+	for _, e := range snap {
+		if e.Session != "" && e.Asleep == 0 {
+			awake[e.Tool+":"+e.Session] = true
+		}
+	}
+	seen := map[string]bool{}
+	out := snap[:0:0]
+	for _, e := range snap {
+		k := e.Tool + ":" + e.Session
+		if e.Session != "" {
+			if seen[k] || (e.Asleep > 0 && awake[k]) {
+				continue
+			}
+			seen[k] = true
+		}
+		out = append(out, e)
+	}
+	return out
+}
+
 func (p *Panel) restore(snap []snapEntry) {
 	first, n := "", 0
-	for _, e := range snap {
+	for _, e := range dedupe(snap) {
 		prof, ok := p.profileOf(e.Profile)
 		if !ok {
 			continue

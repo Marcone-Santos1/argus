@@ -198,3 +198,54 @@ func TestRestoreKeepsHibernated(t *testing.T) {
 		t.Fatal("the awake session is the one selected")
 	}
 }
+
+// A saved list with the same conversation twice brings it back once, the
+// awake copy winning over a hibernated one.
+func TestDedupeSnapshot(t *testing.T) {
+	in := []snapEntry{
+		{Name: "Dev", Tool: "claude", Session: "c1", Asleep: 5},
+		{Name: "dev", Tool: "claude", Session: "c1"},
+		{Name: "a", Tool: "claude", Session: "c2", Asleep: 5},
+		{Name: "a2", Tool: "claude", Session: "c2", Asleep: 6},
+		{Name: "new", Tool: "claude"},
+		{Name: "new2", Tool: "claude"},
+	}
+	var names []string
+	for _, e := range dedupe(in) {
+		names = append(names, e.Name)
+	}
+	if got := strings.Join(names, ","); got != "dev,a,new,new2" {
+		t.Fatalf("dedupe: %s", got)
+	}
+}
+
+// Opening a conversation that a session already holds goes to that session
+// instead of starting it a second time.
+func TestResumeHeldConversation(t *testing.T) {
+	needTmux(t)
+	home := t.TempDir()
+	sock := fmt.Sprintf("argus-resume-held-%d", os.Getpid())
+	p := paths.For(home, sock)
+	_ = os.MkdirAll(p.State, 0o755)
+	bin := filepath.Join(t.TempDir(), "claude")
+	_ = os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 300\n"), 0o755)
+	cfg, _ := config.Parse("[[profile]]\nname = \"fake\"\ngroup = \"PERSONAL\"\ncommand = \""+bin+"\"\n", home)
+	const conv = "11111111-2222-3333-4444-666666666666"
+
+	pn, tc := newServer(t, sock, p, cfg)
+	t.Cleanup(func() { _, _ = tc.Run("kill-server") })
+	pn.reconcile()
+	pn.offerRestore()
+	dir := t.TempDir()
+	pn.createAgent(dir, cfg.Profiles[0], &history.Entry{Tool: history.Claude, ID: conv}, "")
+	pn.createAgent(t.TempDir(), cfg.Profiles[0], nil, "")
+	pn.reconcile()
+	pn.resumeEntry(history.Entry{Tool: history.Claude, ID: conv, Dir: dir, Profile: "fake"})
+	pn.reconcile()
+	if len(pn.agents) != 2 {
+		t.Fatalf("a second session was started: %d", len(pn.agents))
+	}
+	if c := pn.current(); c == nil || c.Session != conv {
+		t.Fatalf("the holding session is selected: %+v", c)
+	}
+}
