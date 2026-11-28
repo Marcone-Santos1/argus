@@ -104,7 +104,7 @@ Mouse: click selects (a session shows on the right), double click enters; click 
 
 `~/.config/argus/config.toml` holds the project folders, profiles, per-folder profile rules, the session limit, which status changes notify you (`notify = ["waiting", "done"]`), the editor (`editor = "fresh"`), `hibernate_after` (`"0"` turns hibernation off), `compact_at` and `compact_focus` (when and how a long conversation is compacted), `handoff_prompt` and `handoff_resume` (what `C` asks for: a file by default, or a memory tool's handoff) and `storm_rate`, the processes per minute that raise the footer's alarm (2000 by default, `-1` turns it off).
 
-A folder rule (`[[rule]]`, first match wins) picks the account for new sessions and for conversations reopened in that folder. Argus also watches the `remote-settings.json` a Claude Team or Enterprise organization pushes to each account and warns you (panel and notification) when it changes, naming what was set, such as `env.OTEL_LOG_USER_PROMPTS`.
+Argus also watches the `remote-settings.json` a Claude Team or Enterprise organization pushes to each account and warns you (panel and notification) when it changes, naming what was set, such as `env.OTEL_LOG_USER_PROMPTS`.
 
 A profile is a command with its environment:
 

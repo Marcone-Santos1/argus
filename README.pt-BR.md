@@ -104,7 +104,7 @@ Mouse: clique seleciona (a sessão aparece à direita), clique duplo entra; cliq
 
 `~/.config/argus/config.toml` guarda as pastas de projetos, os perfis, as regras de perfil por pasta, o limite de sessões, quais mudanças de estado notificam (`notify = ["waiting", "done"]`), o editor (`editor = "fresh"`), o `hibernate_after` (`"0"` desliga a hibernação), o `compact_at` e o `compact_focus` (quando e como uma conversa longa é compactada), o `handoff_prompt` e o `handoff_resume` (o que o `C` pede: um arquivo por padrão, ou o handoff de uma ferramenta de memória) e o `storm_rate`, os processos por minuto que disparam o alarme do rodapé (2000 por padrão, `-1` desliga).
 
-Uma regra de pasta (`[[rule]]`, vale a primeira que casar) escolhe a conta das sessões novas e das conversas reabertas naquela pasta. O Argus também vigia o `remote-settings.json` que uma organização Claude Team ou Enterprise envia para cada conta e avisa (no painel e por notificação) quando ele muda, dizendo o que foi definido, como `env.OTEL_LOG_USER_PROMPTS`.
+O Argus vigia o `remote-settings.json` que uma organização Claude Team ou Enterprise envia para cada conta e avisa (no painel e por notificação) quando ele muda, dizendo o que foi definido, como `env.OTEL_LOG_USER_PROMPTS`.
 
 Um perfil é um comando com seu ambiente:
 
