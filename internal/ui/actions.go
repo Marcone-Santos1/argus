@@ -359,6 +359,11 @@ func (p *Panel) resumeEntry(e history.Entry) {
 		p.focusSession()
 		return
 	}
+	// A rule for the folder decides the account, as for a new session, also
+	// for a conversation started under another one.
+	if name, ok := p.d.Config.RuleProfile(e.Dir, e.Tool); ok {
+		e.Profile = name
+	}
 	p.backMode = p.mode
 	p.resume = &e
 	p.chosenDir = e.Dir

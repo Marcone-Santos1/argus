@@ -166,6 +166,7 @@ type Panel struct {
 	editorsSaved  bool                 // the editors were closed for a detach: their end is no quit
 	themeLive     bool                 // the theme window is open: the editor reads its file closely
 	themeTick     int
+	orgCheckedAt  time.Time         // last look at the organizations' Claude settings
 	lastEdit      map[string]string // session -> last edit opened in the code column
 	edW           int
 	dispW         int    // width of the session shown on the right
@@ -353,6 +354,7 @@ func (p *Panel) tick() {
 	if p.d.Monitor == nil {
 		return
 	}
+	p.orgCheck(time.Now())
 	p.reading = p.d.Monitor.Sample()
 	p.sampleSessions(time.Now())
 	p.hibernateIdle(time.Now())

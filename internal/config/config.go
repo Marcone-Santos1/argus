@@ -372,15 +372,25 @@ func (c *Config) ShouldNotify(s string) bool {
 	return false
 }
 
+// RuleProfile is the profile the first matching rule gives the folder, among
+// the profiles of the given tool ("" = any tool).
+func (c *Config) RuleProfile(dir, tool string) (string, bool) {
+	for _, r := range c.Rules {
+		if r.Match == "" || !strings.Contains(dir, r.Match) {
+			continue
+		}
+		if pr, ok := c.Profile(r.Profile); ok && (tool == "" || pr.Label() == tool) {
+			return r.Profile, true
+		}
+	}
+	return "", false
+}
+
 // DefaultProfile picks a folder's profile: a rule, then the last one used
 // there, then the first profile.
 func (c *Config) DefaultProfile(dir string, prefs *Prefs) string {
-	for _, r := range c.Rules {
-		if r.Match != "" && strings.Contains(dir, r.Match) {
-			if _, ok := c.Profile(r.Profile); ok {
-				return r.Profile
-			}
-		}
+	if name, ok := c.RuleProfile(dir, ""); ok {
+		return name
 	}
 	if prefs != nil {
 		if dp, ok := prefs.Dirs[dir]; ok {

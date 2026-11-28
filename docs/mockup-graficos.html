@@ -1,0 +1,129 @@
+<title>Argus, ideias gráficas</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600&display=swap">
+<style>
+/* Layout: one card per idea, each with a terminal capture and a short note. Single dark look on purpose: it is a terminal. */
+:root {
+  color-scheme: dark;
+  --page: #16181d; --term: #1e2127; --line: #2c313a; --fg: #d7dae0; --muted: #8b919c;
+  --quiet: #6c717c; --faint: #4a4f59; --accent: #7aa2f7; --folder: #61afef;
+  --work: #e5c07b; --wait: #d19aec; --done: #98c379; --red: #e06c75;
+  --sel: #293245; --soft: #222838; --pes: #56b6c2; --emp: #d19a66;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  --sans: Inter, system-ui, sans-serif;
+}
+body { background: var(--page); color: var(--fg); font-family: var(--sans); margin: 0;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 56px; }
+main { max-width: 1180px; margin: 0 auto; display: grid; gap: 36px; }
+h1 { font-size: 1.35rem; margin: 0; text-wrap: balance; }
+h2 { font-size: 1rem; margin: 0; display: flex; gap: 10px; align-items: baseline; }
+h2 span { color: var(--muted); font-weight: 400; font-size: .85rem; }
+.lead { color: var(--muted); margin: 6px 0 0; max-width: 70ch; line-height: 1.5; }
+.idea { display: grid; gap: 10px; }
+.note { color: var(--muted); max-width: 75ch; line-height: 1.5; margin: 0; font-size: .92rem; }
+.term { background: var(--term); border: 1px solid var(--line); border-radius: 8px; overflow-x: auto; max-width: 100%; }
+pre { margin: 0; padding: 10px 0; font: 13px/1.45 var(--mono); white-space: normal; }
+pre .l { display: block; padding: 0 12px; white-space: pre; }
+.b { font-weight: 700 } .ac { color: var(--accent) } .fo { color: var(--folder); font-weight: 700 }
+.q { color: var(--quiet) } .f { color: var(--faint) } .m { color: var(--muted) }
+.wk { color: var(--work) } .wt { color: var(--wait); font-weight: 700 } .dn { color: var(--done) } .rd { color: var(--red) }
+.pes { color: var(--pes) } .emp { color: var(--emp) }
+.sel { background: var(--sel) } .soft { background: var(--soft) }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 330px), 1fr)); gap: 10px; }
+.tile { background: var(--term); border: 1px solid var(--line); border-radius: 6px; min-width: 0; overflow: hidden; }
+.tile.on { border-color: var(--accent); }
+.tile.waiting { border-color: #8a6a3a; }
+.tile .head { font: 12px/1.4 var(--mono); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: pre; overflow: hidden; }
+.tile pre { padding: 6px 0; font-size: 12px; }
+.tile pre .l { padding: 0 10px; overflow: hidden; text-overflow: ellipsis; }
+.pair { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+</style>
+<main>
+  <header>
+    <h1>Argus: ideias mais gráficas</h1>
+    <p class="lead">Quatro ideias, todas dentro do terminal e com dados que o Argus já tem. Os números são de exemplo, com as suas sessões de hoje.</p>
+  </header>
+
+  <section class="idea">
+    <h2>1. Visão geral <span>tecla v · todas as sessões lado a lado</span></h2>
+    <div class="grid">
+      <div class="tile on"><div class="head"><span class="wk">◞</span> <span class="b">Praeko</span>  <span class="emp">emp</span> <span class="f">· sonnet-5.5 · 12m</span></div><pre>
+<span class="l q">● Bash(npm run test:studio)</span>
+<span class="l f">  ⎿ 142 passed, 3 running…</span>
+<span class="l q">● Atualizo o CHANGELOG enquanto os</span>
+<span class="l q">  testes terminam.</span>
+<span class="l f">✻ Brewing… 4m 12s</span>
+</pre></div>
+      <div class="tile waiting"><div class="head"><span class="wt">◐</span> <span class="b wt">Auditoria Ideal</span>  <span class="emp">emp</span> <span class="f">· opus-5.5 · agora</span></div><pre>
+<span class="l">Do you want to run this command?</span>
+<span class="l q">  docker exec ai_app php artisan migrate</span>
+<span class="l wt">❯ 1. Yes</span>
+<span class="l q">  2. Yes, don't ask again</span>
+<span class="l q">  3. No</span>
+</pre></div>
+      <div class="tile"><div class="head"><span class="dn">✓</span> <span class="b">Lab do pq</span>  <span class="emp">emp</span> <span class="f">· opus-5.5 · 7m</span></div><pre>
+<span class="l q">● Os quatro vídeos do lote 1 estão</span>
+<span class="l q">  prontos em out/lote-1/.</span>
+<span class="l q">  - nuvem.mp4 · 0:58</span>
+<span class="l q">  - voz.mp4 · 1:02</span>
+<span class="l f">✻ Worked for 9m 40s</span>
+</pre></div>
+      <div class="tile"><div class="head"><span class="wk">◞</span> <span class="b">Jogo idle</span>  <span class="emp">emp</span> <span class="f">· sonnet-5.5 · 1m</span></div><pre>
+<span class="l q">● Write(src/game/upgrades.ts)</span>
+<span class="l f">  ⎿ Wrote 84 lines</span>
+<span class="l q">● Agora ligo os upgrades na loja e</span>
+<span class="l q">  rodo os testes.</span>
+<span class="l f">✻ Cooking… 52s</span>
+</pre></div>
+    </div>
+    <p class="note">Mostra as últimas linhas de cada sessão, como um painel de câmeras. Enter ou clique abre a sessão. As telas são capturadas só enquanto essa visão está aberta, então fechada ela não custa nada.</p>
+  </section>
+
+  <div class="pair">
+    <section class="idea">
+      <h2>2. Linha do tempo de hoje <span>tecla g</span></h2>
+      <div class="term"><pre>
+<span class="l f">            9h    10h    11h    12h    13h</span>
+<span class="l"> <span class="b">Praeko</span>     <span class="wk">███</span><span class="f">··</span><span class="wk">█████</span><span class="wt">▌</span><span class="wk">████</span><span class="dn">─</span><span class="wk">██████</span><span class="f">···</span></span>
+<span class="l"> <span class="b">Auditoria</span>  <span class="f">····</span><span class="wk">████</span><span class="wt">▌▌</span><span class="wk">███</span><span class="dn">──</span><span class="wk">█████</span><span class="wt">▌</span></span>
+<span class="l"> <span class="b">Lab do pq</span>  <span class="f">·······</span><span class="wk">██████████</span><span class="dn">───</span><span class="f">···</span></span>
+<span class="l"> <span class="b">Jogo idle</span>  <span class="f">··········</span><span class="wk">███</span><span class="wt">▌</span><span class="wk">█████</span></span>
+<span class="l"> </span>
+<span class="l"> <span class="wk">█</span> <span class="q">trabalhando</span>  <span class="wt">▌</span> <span class="q">esperou você</span>  <span class="dn">─</span> <span class="q">pronto</span></span>
+<span class="l"> <span class="q">esperou você hoje:</span> <span class="wt">38 min</span> <span class="f">· mais em Auditoria (21 min)</span></span>
+</pre></div>
+      <p class="note">Quando cada sessão trabalhou, esperou por você ou ficou parada. Mostra quanto tempo as sessões perderam esperando você. Vem do histórico de estados, que o hook já grava.</p>
+    </section>
+
+    <section class="idea">
+      <h2>3. Ritmo do limite <span>no rodapé</span></h2>
+      <div class="term"><pre>
+<span class="l"> <span class="pes">pes</span> <span class="f">5h</span> <span class="dn">▰▰</span><span class="f">▱▱▱▱▱▱</span><span class="m">│</span><span class="f">▱▱</span> 19% <span class="q">3h04</span></span>
+<span class="l">        <span class="f">uso</span>   <span class="m">│ agora</span> <span class="dn">folgado</span></span>
+<span class="l"> <span class="emp">emp</span> <span class="f">5h</span> <span class="wk">▰▰▰▰▰▰</span><span class="f">▱</span><span class="m">│</span><span class="f">▱▱▱</span> 64% <span class="q">3h40</span></span>
+<span class="l">        <span class="f">uso</span>   <span class="m">│ agora</span> <span class="wk">acaba em ~1h10</span></span>
+<span class="l"> </span>
+<span class="l"> <span class="f">7d</span> <span class="pes">pes</span> <span class="dn">▰</span><span class="f">▱▱▱▱▱▱▱▱▱</span> 11%   <span class="emp">emp</span> <span class="dn">▰</span><span class="f">▱▱▱▱▱▱▱▱▱</span>  2%</span>
+</pre></div>
+      <p class="note">A barra ganha uma marca de onde você está dentro da janela de 5 horas. Uso à frente da marca quer dizer que o limite acaba antes de zerar, e o Argus calcula quando. Na versão de verdade cabe numa linha por conta.</p>
+    </section>
+  </div>
+
+  <section class="idea">
+    <h2>4. Atividade em cada sessão <span>na lista</span></h2>
+    <div class="term" style="max-width: 460px"><pre>
+<span class="l soft"> <span class="fo">praeko</span>                       <span class="q">⎇ main ✎5 ↑1</span></span>
+<span class="l sel"><span class="ac">▌</span><span class="f">1</span> <span class="wk">◞</span> <span class="b">Praeko</span>               <span class="f">sonnet-5.5</span> <span class="q">12m</span></span>
+<span class="l soft">     <span class="f">ctx</span> <span class="wk">▰▰▰▰▰</span> <span class="wk">91%</span>  <span class="f">cpu</span> <span class="wk">▂▅▇█▆▃</span>        <span class="emp">emp</span></span>
+<span class="l"> </span>
+<span class="l"> <span class="fo">labdoporque</span></span>
+<span class="l"> <span class="f">5</span> <span class="wk">◞</span> Lab do pq              <span class="f">opus-5.5</span> <span class="q">0s</span></span>
+<span class="l">     <span class="wk">⚙ 4</span> <span class="f">cpu</span> <span class="rd">▅████▇</span> <span class="rd">384%</span> <span class="f">mem</span> <span class="q">1.1G</span>    <span class="emp">emp</span></span>
+</pre></div>
+    <p class="note">Um gráfico de CPU de cada sessão no último minuto, no lugar do número sozinho. Dá para ver se ela está num pico rápido ou pesada há tempo. Usa a leitura que já existe.</p>
+  </section>
+
+  <section class="idea">
+    <p class="note"><b style="color: var(--fg)">Minha recomendação:</b> a 1 (visão geral) é a que mais muda o uso. Você vê numa olhada qual sessão está pedindo algo e o que cada uma está fazendo, sem trocar uma por uma. A 3 é pequena e útil, porque avisa antes de você bater no limite.</p>
+  </section>
+</main>

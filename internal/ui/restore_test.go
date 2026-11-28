@@ -307,3 +307,28 @@ func TestWakeRegroupsList(t *testing.T) {
 		t.Fatal("the woken session stays selected")
 	}
 }
+
+// A folder rule decides the account a reopened conversation runs in, even
+// when it was started under another one.
+func TestResumeFollowsRule(t *testing.T) {
+	needTmux(t)
+	home := t.TempDir()
+	sock := fmt.Sprintf("argus-resume-rule-%d", os.Getpid())
+	p := paths.For(home, sock)
+	_ = os.MkdirAll(p.State, 0o755)
+	bin := filepath.Join(t.TempDir(), "claude")
+	_ = os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 300\n"), 0o755)
+	cfg, _ := config.Parse("[[profile]]\nname = \"pes\"\ncommand = \""+bin+"\"\n[[profile]]\nname = \"emp\"\ncommand = \""+bin+"\"\n"+
+		"[[rule]]\nmatch = \"/work/\"\nprofile = \"emp\"\n[[rule]]\nmatch = \"/\"\nprofile = \"pes\"\n", home)
+
+	pn, tc := newServer(t, sock, p, cfg)
+	t.Cleanup(func() { _, _ = tc.Run("kill-server") })
+	pn.reconcile()
+	pn.offerRestore()
+	dir := t.TempDir()
+	pn.resumeEntry(history.Entry{Tool: history.Claude, ID: "22222222-2222-3333-4444-666666666666", Dir: dir, Profile: "emp"})
+	pn.reconcile()
+	if len(pn.agents) != 1 || pn.agents[0].Profile != "pes" {
+		t.Fatalf("the rule's account: %+v", pn.agents)
+	}
+}
