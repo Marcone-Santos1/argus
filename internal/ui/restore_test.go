@@ -249,3 +249,61 @@ func TestResumeHeldConversation(t *testing.T) {
 		t.Fatalf("the holding session is selected: %+v", c)
 	}
 }
+
+// Waking a hibernated session moves it out of the hibernated section at
+// once: no awake session is listed among the hibernated ones.
+func TestWakeRegroupsList(t *testing.T) {
+	needTmux(t)
+	home := t.TempDir()
+	sock := fmt.Sprintf("argus-wake-regroup-%d", os.Getpid())
+	p := paths.For(home, sock)
+	_ = os.MkdirAll(p.State, 0o755)
+	bin := filepath.Join(t.TempDir(), "claude")
+	_ = os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 300\n"), 0o755)
+	cfg, _ := config.Parse("[[profile]]\nname = \"fake\"\ngroup = \"PERSONAL\"\ncommand = \""+bin+"\"\n", home)
+
+	pn, tc := newServer(t, sock, p, cfg)
+	t.Cleanup(func() { _, _ = tc.Run("kill-server") })
+	pn.prefs.Look = lookApp
+	pn.reconcile()
+	pn.offerRestore()
+	pn.createAgent(t.TempDir(), cfg.Profiles[0], nil, "")
+	for i, c := range []string{"aaaaaaaa-1111-2222-3333-444444444444", "bbbbbbbb-1111-2222-3333-444444444444", "cccccccc-1111-2222-3333-444444444444"} {
+		pn.createAgent(fmt.Sprint(t.TempDir(), i), cfg.Profiles[0], &history.Entry{Tool: history.Claude, ID: c}, "")
+	}
+	pn.reconcile()
+	for i := range pn.agents {
+		if pn.agents[i].Session != "" {
+			pn.hibernate(&pn.agents[i], time.Now())
+		}
+	}
+	pn.expanded[asleepKey] = true
+	pn.reconcile()
+	if !pn.appLook() {
+		t.Skip("classic look")
+	}
+	target := ""
+	for _, a := range pn.agents {
+		if a.Session == "bbbbbbbb-1111-2222-3333-444444444444" {
+			target = a.ID
+		}
+	}
+	if !pn.selectKey("a:" + target) {
+		t.Fatal("select the hibernated one")
+	}
+	pn.focusSession()
+	seenAsleep := false
+	for _, it := range pn.items {
+		if it.agent < 0 {
+			continue
+		}
+		if !pn.agents[it.agent].Asleep.IsZero() {
+			seenAsleep = true
+		} else if seenAsleep {
+			t.Fatalf("an awake session is listed after a hibernated one: %+v", pn.agents[it.agent])
+		}
+	}
+	if c := pn.current(); c == nil || c.ID != target {
+		t.Fatal("the woken session stays selected")
+	}
+}

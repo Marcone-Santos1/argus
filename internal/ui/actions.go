@@ -85,6 +85,9 @@ func (p *Panel) focusSession() {
 			return
 		}
 		p.refreshStatus(p.items[p.sel].agent, false)
+		// It leaves the hibernated section: the list is regrouped, or it
+		// would show it awake in the middle of the hibernated ones.
+		p.rebuildItems("a:" + a.ID)
 	}
 	if p.showSelected() {
 		_, _ = p.d.Tmux.Run("select-pane", "-t", p.displayPane)
