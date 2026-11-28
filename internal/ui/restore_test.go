@@ -332,3 +332,33 @@ func TestResumeFollowsRule(t *testing.T) {
 		t.Fatalf("the rule's account: %+v", pn.agents)
 	}
 }
+
+// A hibernated session wakes in the account its folder's rule gives.
+func TestWakeFollowsRule(t *testing.T) {
+	needTmux(t)
+	home := t.TempDir()
+	sock := fmt.Sprintf("argus-wake-rule-%d", os.Getpid())
+	p := paths.For(home, sock)
+	_ = os.MkdirAll(p.State, 0o755)
+	bin := filepath.Join(t.TempDir(), "claude")
+	_ = os.WriteFile(bin, []byte("#!/bin/sh\nexec sleep 300\n"), 0o755)
+	cfg, _ := config.Parse("[[profile]]\nname = \"pes\"\ncommand = \""+bin+"\"\n[[profile]]\nname = \"emp\"\ncommand = \""+bin+"\"\n", home)
+
+	pn, tc := newServer(t, sock, p, cfg)
+	t.Cleanup(func() { _, _ = tc.Run("kill-server") })
+	pn.reconcile()
+	pn.offerRestore()
+	pn.createAgent(t.TempDir(), cfg.Profiles[1], &history.Entry{Tool: history.Claude, ID: "33333333-2222-3333-4444-666666666666"}, "")
+	pn.reconcile()
+	if !pn.hibernate(&pn.agents[0], time.Now()) {
+		t.Fatal("hibernate")
+	}
+	pn.reconcile()
+	cfg.Rules = []config.Rule{{Match: "/", Profile: "pes"}}
+	pn.selectKey("a:" + pn.agents[0].ID)
+	pn.focusSession()
+	pn.reconcile()
+	if pn.agents[0].Profile != "pes" || !pn.agents[0].Asleep.IsZero() {
+		t.Fatalf("woke in the rule's account: %+v", pn.agents[0])
+	}
+}

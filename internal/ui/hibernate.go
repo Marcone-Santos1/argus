@@ -88,6 +88,16 @@ func (p *Panel) wake(a *agent) bool {
 		p.flash(i18n.T("msg.noProfile", a.Profile))
 		return false
 	}
+	// A folder rule decides the account it wakes in, as when reopening.
+	if name, ok := p.d.Config.RuleProfile(a.Dir, history.Claude); ok && name != a.Profile {
+		if rp, ok := p.profileOf(name); ok {
+			prof = rp
+			a.Profile = name
+			_ = p.d.Tmux.SetPaneOptions(a.Pane, "@argus_profile", name)
+			p.prefs.Sessions[history.Claude+":"+a.Session] = name
+			_ = p.prefs.Save()
+		}
+	}
 	_ = status.Write(p.d.Paths.Status(a.ID), status.Idle)
 	env, cmd := p.launch(a.ID, prof, &history.Entry{Tool: history.Claude, ID: a.Session})
 	args := append([]string{"respawn-pane", "-k", "-t", a.Pane, "-c", a.Dir}, env...)
